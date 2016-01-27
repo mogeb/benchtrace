@@ -14,6 +14,7 @@ int empty_mod_ioctl(
 		unsigned long ioctl_param) /* The parameter to it */
 {
 	trace_empty_ioctl_1b(0);
+	return 0;
 }
 
 static const struct file_operations empty_mod_operations = {
