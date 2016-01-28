@@ -1,8 +1,10 @@
 CC = gcc
 SOURCE = client.c
+LIBS += -lpopt
+CFLAGS = -g
 
 all:
-	$(CC) client.c -o client
+	$(CC) $(CFLAGS) client.c -o client $(LIBS)
 
 clean:
 	rm client
