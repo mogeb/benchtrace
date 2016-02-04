@@ -7,8 +7,7 @@
 
 #define PROC_ENTRY_NAME "benchmod"
 
-int empty_mod_ioctl(
-		struct inode *inode,
+long benchmod_ioctl(
 		struct file *file,
 		unsigned int ioctl_num,/* The number of the ioctl */
 		unsigned long ioctl_param) /* The parameter to it */
@@ -17,9 +16,18 @@ int empty_mod_ioctl(
 	return 0;
 }
 
+ssize_t benchmod_read(struct file *f, char *buf, size_t size, loff_t *offset)
+{
+    ssize_t ret = -1;
+
+    return ret;
+}
+
 static const struct file_operations empty_mod_operations = {
-	.unlocked_ioctl = empty_mod_ioctl,
+    .unlocked_ioctl = benchmod_ioctl,
+    .read = benchmod_read
 };
+
 
 /* Initialize the module - Register the character device */
 static int __init benchmod_init(void)
@@ -27,20 +35,20 @@ static int __init benchmod_init(void)
 	int ret = 0;
 	printk(KERN_INFO "Init benchmod\n");
 
-	proc_create_data(PROC_ENTRY_NAME, S_IRUGO | S_IWUGO, NULL,
-			&empty_mod_operations, NULL);
+    proc_create_data(PROC_ENTRY_NAME, S_IRUGO | S_IWUGO, NULL,
+            &empty_mod_operations, NULL);
 
 	return ret;
 }
 
 static void __exit benchmod_exit(void)
 {
-	printk(KERN_INFO "Exit benchmod\n");
-	remove_proc_entry(PROC_ENTRY_NAME, NULL);
+    printk(KERN_INFO "Exit benchmod\n");
+    remove_proc_entry(PROC_ENTRY_NAME, NULL);
 }
 
-module_init(benchmod_init);
-module_exit(benchmod_exit);
+module_init(benchmod_init)
+module_exit(benchmod_exit)
 
 MODULE_LICENSE("GPL and additional rights");
 MODULE_AUTHOR("Mohamad Gebai");
