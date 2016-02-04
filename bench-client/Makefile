@@ -1,6 +1,6 @@
 CC = gcc
 SOURCE = client.c
-LIBS += -lpopt
+LIBS += -lpopt -lpthread
 CFLAGS = -g
 
 all:
