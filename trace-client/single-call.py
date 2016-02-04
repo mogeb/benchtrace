@@ -14,3 +14,6 @@ def do_work(tracer, args = None):
 def cleanup(args = None):
     print("Single call workload cleanup")
     return
+
+def compile_results():
+    return

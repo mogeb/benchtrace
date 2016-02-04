@@ -9,13 +9,14 @@ except ImportError:
 
 def start_tracing(tracename, tracepoints = None):
     print("LTTng start tracing")
-    lttng.create(tracename, "/home/mogeb/PycharmProjects/trace-client")
+    lttng.create(tracename, "/home/mogeb/git/benchtrace/trace-client")
     domain = lttng.Domain()
     domain.type = lttng.DOMAIN_KERNEL
     handle = lttng.Handle(tracename, domain)
     event = lttng.Event()
-    event.name = 'getuid'
-    event.type = lttng.EVENT_SYSCALL
+    event.name = 'empty_ioctl_1b'
+    #event.name = 'getuid'
+    #event.type = lttng.EVENT_SYSCALL
     lttng.enable_event(handle, event, None)
     lttng.start(tracename)
 

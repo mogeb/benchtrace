@@ -6,7 +6,7 @@ def error_opt(msg):
     print("Option error: " + msg)
 
 def main(args):
-    #call(["rm", "-rf", "/home/mogeb/PycharmProjects/trace-client/kernel"])
+    call(["rm", "-rf", "/home/mogeb/git/benchtrace/trace-client/kernel"])
     longopts = ["tracer=", "workload="]
     try:
         optlist, args = getopt.getopt(args[1:], "t:w:", longopts)
@@ -31,11 +31,16 @@ def main(args):
             except ImportError as err:
                 print("Import error: " + str(err))
 
+            print()
+            print("----")
+            print("Starting for tracer " + tracer_arg)
             workload.init()
             tracer.start_tracing("session-test")
             workload.do_work(tracer_arg)
             tracer.stop_tracing("session-test")
             workload.cleanup()
+
+        workload.compile_results()
 
 if __name__ == "__main__":
     main(sys.argv)
