@@ -10,6 +10,20 @@
 #define CPUS 8
 
 struct timespec **calltimes;
+ssize_t *sizes;
+
+struct timespec do_ts_diff(struct timespec start, struct timespec end)
+{
+    struct timespec temp;
+    if ((end.tv_nsec - start.tv_nsec) < 0) {
+        temp.tv_sec = end.tv_sec - start.tv_sec - 1;
+        temp.tv_nsec = 1000000000 + end.tv_nsec-start.tv_nsec;
+    } else {
+        temp.tv_sec = end.tv_sec - start.tv_sec;
+        temp.tv_nsec = end.tv_nsec - start.tv_nsec;
+    }
+    return temp;
+}
 
 long benchmod_ioctl(
         struct file *file,
@@ -19,6 +33,8 @@ long benchmod_ioctl(
     int i, ret = 0, loop = ioctl_param;
     int this_cpu = smp_processor_id();
     struct timespec *iterator_ts;
+
+    printk(KERN_INFO "Ioctl on CPU %d\n", this_cpu);
 
     /*
      * Discard old values that haven't been read.
@@ -33,12 +49,15 @@ long benchmod_ioctl(
      */
     calltimes[this_cpu] = (struct timespec*)
             kmalloc(loop * sizeof(struct timespec), GFP_KERNEL);
+    sizes[this_cpu] = loop;
 
     if(!calltimes[this_cpu]) {
         printk(KERN_INFO "Couldn't allocate %d spots\n", loop);
         ret = -1;
         goto done;
     }
+    printk(KERN_INFO "Allocated %d spots\n", loop);
+
     iterator_ts = calltimes[this_cpu];
 
     for(i = 0; i < loop; i++) {
@@ -54,8 +73,37 @@ done:
 
 ssize_t benchmod_read(struct file *f, char *buf, size_t size, loff_t *offset)
 {
-    ssize_t ret = -1;
+    int i = 0, j = 0;
+    ssize_t ret = 0;
+    char *start;
+    struct timespec diff;
+    start = buf;
 
+    printk("BENCHMOD READ\n");
+
+    if(!calltimes) {
+        ret = -1;
+        goto done;
+    }
+
+    for(i = 0; i < CPUS; i++) {
+        if(calltimes[i]) {
+            printk(KERN_INFO "Reading values from array %d, has %ld values\n", i, sizes[i]);
+            for(j = 1; j < sizes[i]; j++) {
+                diff = do_ts_diff(calltimes[i][j - 1], calltimes[i][j]);
+                if(diff.tv_sec != 0) {
+                    printk(KERN_INFO "%ld\n", calltimes[i][j].tv_sec);
+                }
+                sprintf(start + j * (sizeof(long) + 2), "%ld\n", diff.tv_nsec);
+                ret += sizeof(long) + 2;
+            }
+            start += sizes[i] * (sizeof(long) + 2);
+        }
+        kfree(calltimes[i]);
+        calltimes[i] = NULL;
+    }
+
+done:
     return ret;
 }
 
@@ -74,6 +122,7 @@ static int __init benchmod_init(void)
     /*
      * Allocate some memory to store the latency values
      */
+    sizes = (ssize_t*) kmalloc(CPUS * sizeof(ssize_t), GFP_KERNEL);
     calltimes = (struct timespec**)
             kmalloc(CPUS * sizeof(struct timespec*), GFP_KERNEL);
 
