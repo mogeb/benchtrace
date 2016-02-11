@@ -33,6 +33,12 @@ long benchmod_ioctl(
      */
     calltimes[this_cpu] = (struct timespec*)
             kmalloc(loop * sizeof(struct timespec), GFP_KERNEL);
+
+    if(!calltimes[this_cpu]) {
+        printk(KERN_INFO "Couldn't allocate %d spots\n", loop);
+        ret = -1;
+        goto done;
+    }
     iterator_ts = calltimes[this_cpu];
 
     for(i = 0; i < loop; i++) {
@@ -42,6 +48,7 @@ long benchmod_ioctl(
 
     printk(KERN_INFO "Did %d loops\n", loop);
 
+done:
     return ret;
 }
 
@@ -61,7 +68,7 @@ static const struct file_operations empty_mod_operations = {
 /* Initialize the module - Register the character device */
 static int __init benchmod_init(void)
 {
-    int ret = 0;
+    int ret = 0, i = 0;
     printk(KERN_INFO "Init benchmod\n");
 
     /*
@@ -69,6 +76,10 @@ static int __init benchmod_init(void)
      */
     calltimes = (struct timespec**)
             kmalloc(CPUS * sizeof(struct timespec*), GFP_KERNEL);
+
+    for(i = 0; i < CPUS; i++) {
+        calltimes[i] = NULL;
+    }
 
     proc_create_data(PROC_ENTRY_NAME, S_IRUGO | S_IWUGO, NULL,
             &empty_mod_operations, NULL);
