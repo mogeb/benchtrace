@@ -1,11 +1,11 @@
 CC = gcc
-SOURCE = client.c
+SOURCE = singlecall.c
 LIBS += -lpopt -lpthread
 CFLAGS = -g
 BIN = singlecall
 
 all:
-	$(CC) $(CFLAGS) client.c -o $(BIN) $(LIBS)
+	$(CC) $(CFLAGS) $(SOURCE) -o $(BIN) $(LIBS)
 
 clean:
 	rm $(BIN)
