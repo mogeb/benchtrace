@@ -2,8 +2,10 @@ import getopt
 import sys
 from subprocess import call
 
+
 def error_opt(msg):
     print("Option error: " + msg)
+
 
 def main(args):
     call(["rm", "-rf", "/home/mogeb/git/benchtrace/trace-client/kernel"])
@@ -23,24 +25,28 @@ def main(args):
         try:
             workload = __import__(workload_arg)
         except ImportError as err:
-            print("Import error: " + str(err))
+            print('Import error: ' + str(err))
 
         for tracer_arg in tracer_args:
             try:
                 tracer = __import__(tracer_arg + "-interface")
             except ImportError as err:
-                print("Import error: " + str(err))
+                print('Import error: ' + str(err))
 
+            args['buf_size_kb'] = 256
             print()
-            print("----")
-            print("Starting for tracer " + tracer_arg)
+            print('----')
+            print('Starting for tracer "' + tracer_arg + '"')
+            print()
             workload.init()
-            tracer.start_tracing("session-test")
-            workload.do_work(tracer_arg)
-            tracer.stop_tracing("session-test")
+            """
+            Function do_work() should take care of enabling/disabling tracing
+            """
+            workload.do_work(tracer, args, tracer_arg)
             workload.cleanup()
 
         workload.compile_results()
+
 
 if __name__ == "__main__":
     main(sys.argv)
