@@ -47,16 +47,15 @@ long benchmod_ioctl(
      * Allocate memory for all the calls that will be done, that is 'loop'
      * number of calls.
      */
-    calltimes[this_cpu] = (struct timespec*)
-            kmalloc(loop * sizeof(struct timespec), GFP_KERNEL);
     sizes[this_cpu] = loop;
+    calltimes[this_cpu] = (struct timespec*)
+            kmalloc(sizes[this_cpu] * sizeof(struct timespec), GFP_KERNEL);
 
     if(!calltimes[this_cpu]) {
         printk(KERN_INFO "Couldn't allocate %d spots\n", loop);
         ret = -1;
         goto done;
     }
-    printk(KERN_INFO "Allocated %d spots\n", loop);
 
     iterator_ts = calltimes[this_cpu];
 
@@ -65,9 +64,10 @@ long benchmod_ioctl(
         trace_empty_ioctl_1b(0);
     }
 
-    printk(KERN_INFO "Did %d loops\n", loop);
-
 done:
+    if(this_cpu != smp_processor_id()) {
+        printk("Ioctl call migrated from CPU %d to CPU %d\n", this_cpu, smp_processor_id());
+    }
     return ret;
 }
 
@@ -75,11 +75,10 @@ ssize_t benchmod_read(struct file *f, char *buf, size_t size, loff_t *offset)
 {
     int i = 0, j = 0;
     ssize_t ret = 0;
+    int count = 0;
     char *start;
     struct timespec diff;
     start = buf;
-
-    printk("BENCHMOD READ\n");
 
     if(!calltimes) {
         ret = -1;
@@ -91,13 +90,11 @@ ssize_t benchmod_read(struct file *f, char *buf, size_t size, loff_t *offset)
             printk(KERN_INFO "Reading values from array %d, has %ld values\n", i, sizes[i]);
             for(j = 1; j < sizes[i]; j++) {
                 diff = do_ts_diff(calltimes[i][j - 1], calltimes[i][j]);
-                if(diff.tv_sec != 0) {
-                    printk(KERN_INFO "%ld\n", calltimes[i][j].tv_sec);
-                }
-                sprintf(start + j * (sizeof(long) + 2), "%ld\n", diff.tv_nsec);
-                ret += sizeof(long) + 2;
+                /* Assume diff.tv_sec is zero */
+                count = sprintf(start + ret, "%ld\n", diff.tv_nsec);
+                ret += count;
             }
-            start += sizes[i] * (sizeof(long) + 2);
+            start += ret;
         }
         kfree(calltimes[i]);
         calltimes[i] = NULL;
