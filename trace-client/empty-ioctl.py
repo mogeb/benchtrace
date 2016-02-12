@@ -6,14 +6,14 @@ def init(args = None):
     return
 
 def do_work(tracer, tracer_name, args = None):
-    loops = 40000000
-    for i in [1, 2, 4, 8]:
-        tracer.start_tracing('session-test')
+    loops = str(4000)
+    for i in [1]:
+        tracer.start_tracing('session-test', args)
         if tracer_name == 'perf':
-            call("perf stat -e 'empty_tp:*' /home/mogeb/git/benchtrace/bench-client/allcalls -t "
+            call("perf stat -e 'empty_tp:*' /home/mogeb/git/benchtrace/all-calls/allcalls -t "
                  + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out", shell=True)
         else:
-            call("/home/mogeb/git/benchtrace/bench-client/allcalls -t "
+            call("/home/mogeb/git/benchtrace/all-calls/allcalls -t "
                  + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out", shell=True)
         tracer.stop_tracing('session-test')
 
@@ -23,6 +23,7 @@ def cleanup(args = None):
 
 
 def compile_results():
+    return
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
     width = 0.15       # the width of the bars
 

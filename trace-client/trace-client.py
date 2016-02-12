@@ -33,7 +33,7 @@ def main(args):
             except ImportError as err:
                 print('Import error: ' + str(err))
 
-            args['buf_size_kb'] = 256
+            args = { 'buf_size_kb' : 256 }
             print()
             print('----')
             print('Starting for tracer "' + tracer_arg + '"')
@@ -42,7 +42,7 @@ def main(args):
             """
             Function do_work() should take care of enabling/disabling tracing
             """
-            workload.do_work(tracer, args, tracer_arg)
+            workload.do_work(tracer, tracer_arg, args)
             workload.cleanup()
 
         workload.compile_results()
