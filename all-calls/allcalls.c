@@ -5,7 +5,10 @@
 #include <popt.h>
 #include <pthread.h>
 #include <time.h>
+#include <errno.h>
 #include <stdlib.h>
+#include <string.h>
+#include <linux/ioctl.h>
 
 #define BENCHMOD_NAME "/proc/benchmod"
 
@@ -13,6 +16,7 @@ struct popt_args {
     int clear;
     int loop;
     int nthreads;
+    int tp_size;
     char *outfile;
     char *tracer;
 };
@@ -49,6 +53,12 @@ struct poptOption options[] = {
         &popt_args.clear, 0,
         "Clear file", "clear"
     },
+    {
+        "size", 's',
+        POPT_ARG_INT | POPT_ARGFLAG_OPTIONAL,
+        &popt_args.tp_size, 0,
+        "Clear file", "clear"
+    },
     POPT_AUTOHELP
 };
 
@@ -58,6 +68,16 @@ struct ioctl_args {
     int fd;
     int ntimes;
 };
+
+static inline int do_ioctl_benchmark(int fd, int times)
+{
+    return ioctl(fd, _IO('m', 0), times);
+}
+
+static inline void do_ioctl_read(int fd, struct timespec *times)
+{
+    ioctl(fd, _IOR('m', 1, struct timespec*), times);
+}
 
 struct timespec ts_diff(struct timespec start, struct timespec end)
 {
@@ -88,14 +108,19 @@ static void parse_args(int argc, char **argv, poptContext *pc)
     }
 }
 
-static void dump(char *outfile, struct timespec timespan)
+static void dump(char *tracer, struct timespec timespan)
 {
     FILE *file;
+    int fd;
     unsigned long totaltime;
+    char huge[1048576];
+    char outfile[1024];
+    strcpy(outfile, tracer);
 
     totaltime = timespan.tv_sec * 1000000000 + timespan.tv_nsec;
 
-    file = fopen(outfile, popt_args.clear ? "w+" : "a+");
+    /* Write summary */
+    file = fopen(strcat(outfile, ".summary"), popt_args.clear ? "w+" : "a+");
 
     if(!file) {
         fprintf(stderr, "Error opening file %s\n", outfile);
@@ -110,18 +135,34 @@ static void dump(char *outfile, struct timespec timespan)
     fprintf(stdout, "%ld\n", timespan.tv_nsec);
 
     fclose(file);
+
+    /* Write raw values for histogram */
+    strcpy(outfile, tracer);
+    file = fopen(strcat(outfile, ".hist"), "w+");
+    fd = open(BENCHMOD_NAME, O_RDONLY);
+
+    /* Dump the content of /proc/benchmod */
+    while(read(fd, huge, 1048576) > 0) {
+        fprintf(file, "%s", huge);
+    }
+
+    close(fd);
+    fclose(file);
 }
 
 void *do_work(void *args)
 {
     struct ioctl_args *arg = args;
-    int i, fd;
+    int i, fd, ret;
 
     fd = open(BENCHMOD_NAME, O_RDONLY);
 
     pthread_barrier_wait(&barrier);
     // This ioctl will write a tracepoint in a tight loop
-    ioctl(fd, 0, arg->ntimes);
+    ret = do_ioctl_benchmark(fd, arg->ntimes);
+    if(ret) {
+        printf("Error ioctl %d, %s\n", 0, strerror(errno));
+    }
     close(fd);
 }
 
@@ -132,6 +173,7 @@ int main(int argc, char **argv)
     popt_args.tracer = "none";
     popt_args.nthreads = 1;
     popt_args.loop = 1;
+    popt_args.tp_size = 4;
 
     int i, fd, ret = 0;
     struct timespec ts_beg, ts_end, ts_elapsed;
@@ -168,7 +210,7 @@ int main(int argc, char **argv)
 
     ts_elapsed = ts_diff(ts_beg, ts_end);
 
-    dump(popt_args.outfile, ts_elapsed);
+    dump(popt_args.tracer, ts_elapsed);
 
     return ret;
 }
