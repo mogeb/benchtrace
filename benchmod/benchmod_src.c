@@ -2,6 +2,7 @@
 #include <linux/module.h>	/* Specifically, a module */
 #include <linux/proc_fs.h>
 #include <linux/slab.h>
+#include <linux/ioctl.h>
 
 #define CREATE_TRACE_POINTS
 #include "empty_tp.h"
@@ -9,7 +10,19 @@
 #define PROC_ENTRY_NAME "benchmod"
 #define CPUS 8
 
-struct timespec **calltimes;
+#define BENCHMARK_MAGIC 'm'
+
+#define IOCTL_BENCHMARK _IO(BENCHMARK_MAGIC, 0)
+#define IOCTL_READ_RES  _IOR(BENCHMARK_MAGIC, 1, struct timspec*)
+
+/*
+ * 50 buckets, each bucket is a interval of 20 ns. With 50 buckets and a
+ * granularity of 20ns, the histogram can cover values ranging between 0 and 1
+ * microsecond.
+ */
+int nbuckets = 50;
+int hist_granularity_ns = 20;
+int **histogram;
 ssize_t *sizes;
 
 struct timespec do_ts_diff(struct timespec start, struct timespec end)
@@ -25,79 +38,115 @@ struct timespec do_ts_diff(struct timespec start, struct timespec end)
     return temp;
 }
 
+int start_benchmark(unsigned int param)
+{
+    int i, ret = 0, loop = param;
+    int this_cpu = smp_processor_id();
+    struct timespec ts_start, ts_end, ts_diff;
+
+    printk(KERN_INFO "Start_benchmark on CPU %d, param = %d\n",
+           this_cpu, param);
+
+    /*
+     * Discard old values that haven't been read.
+     */
+    if(histogram[this_cpu]) {
+        kfree(histogram[this_cpu]);
+        histogram[this_cpu] = NULL;
+    }
+    /*
+     * Allocate memory for the buckets of the histogram
+     */
+    histogram[this_cpu] = (int*) kmalloc(nbuckets * sizeof(int), __GFP_NOFAIL);
+    for(i = 0; i < nbuckets; i++) {
+        histogram[this_cpu][i] = 0;
+    }
+
+    if(!histogram[this_cpu]) {
+        printk(KERN_INFO "Couldn't allocate buckets for CPU %d\n", this_cpu);
+        ret = -1;
+        goto done;
+    }
+
+    for(i = 0; i < loop; i++) {
+        getnstimeofday(&ts_start);
+        trace_empty_ioctl_4b(0);
+        getnstimeofday(&ts_end);
+
+        ts_diff = do_ts_diff(ts_start, ts_end);
+        if(ts_diff.tv_nsec > nbuckets * hist_granularity_ns) {
+            histogram[this_cpu][(nbuckets * hist_granularity_ns - 1) /
+                    hist_granularity_ns]++;
+        } else {
+            histogram[this_cpu][ts_diff.tv_nsec / hist_granularity_ns]++;
+        }
+    }
+
+done:
+    if(this_cpu != smp_processor_id()) {
+        printk("Ioctl migrated from %d to %d\n", this_cpu, smp_processor_id());
+    }
+    return ret;
+}
+
 long benchmod_ioctl(
         struct file *file,
         unsigned int ioctl_num,/* The number of the ioctl */
         unsigned long ioctl_param) /* The parameter to it */
 {
-    int i, ret = 0, loop = ioctl_param;
-    int this_cpu = smp_processor_id();
-    struct timespec *iterator_ts;
+    int ret = 0;
 
-    printk(KERN_INFO "Ioctl on CPU %d\n", this_cpu);
+    switch(ioctl_num) {
+    case IOCTL_BENCHMARK:
+        start_benchmark(ioctl_param);
+        break;
 
-    /*
-     * Discard old values that haven't been read.
-     */
-    if(calltimes[this_cpu]) {
-        kfree(calltimes[this_cpu]);
-        calltimes[this_cpu] = NULL;
-    }
-    /*
-     * Allocate memory for all the calls that will be done, that is 'loop'
-     * number of calls.
-     */
-    sizes[this_cpu] = loop;
-    calltimes[this_cpu] = (struct timespec*)
-            kmalloc(sizes[this_cpu] * sizeof(struct timespec), GFP_KERNEL);
-
-    if(!calltimes[this_cpu]) {
-        printk(KERN_INFO "Couldn't allocate %d spots\n", loop);
-        ret = -1;
-        goto done;
+    default:
+        printk("Invalid ioctl number\n");
     }
 
-    iterator_ts = calltimes[this_cpu];
-
-    for(i = 0; i < loop; i++) {
-        getnstimeofday(iterator_ts++);
-        trace_empty_ioctl_1b(0);
-    }
-
-done:
-    if(this_cpu != smp_processor_id()) {
-        printk("Ioctl call migrated from CPU %d to CPU %d\n", this_cpu, smp_processor_id());
-    }
     return ret;
 }
 
 ssize_t benchmod_read(struct file *f, char *buf, size_t size, loff_t *offset)
 {
-    int i = 0, j = 0;
     ssize_t ret = 0;
-    int count = 0;
+    int i = 0, j = 0, count = 0;
+    int s, e;
+    int res_hist[nbuckets];
+    int print = 0;
     char *start;
-    struct timespec diff;
     start = buf;
 
-    if(!calltimes) {
+    printk("BENCHMOD_READ\n");
+
+    if(!histogram) {
         ret = -1;
         goto done;
     }
 
+    for(i = 0; i < nbuckets; i++) {
+        res_hist[i] = 0;
+    }
+
     for(i = 0; i < CPUS; i++) {
-        if(calltimes[i]) {
-            printk(KERN_INFO "Reading values from array %d, has %ld values\n", i, sizes[i]);
-            for(j = 1; j < sizes[i]; j++) {
-                diff = do_ts_diff(calltimes[i][j - 1], calltimes[i][j]);
-                /* Assume diff.tv_sec is zero */
-                count = sprintf(start + ret, "%ld\n", diff.tv_nsec);
-                ret += count;
+        if(histogram[i]) {
+            print = 1;
+            for(j = 0; j < nbuckets; j++) {
+                res_hist[j] += histogram[i][j];
             }
-            start += ret;
+            kfree(histogram[i]);
+            histogram[i] = NULL;
         }
-        kfree(calltimes[i]);
-        calltimes[i] = NULL;
+    }
+
+    if(print) {
+        for(i = 0; i < nbuckets; i++) {
+            s = i * hist_granularity_ns;
+            e = (i + 1) * hist_granularity_ns;
+            count = sprintf(start + ret, "%d,%d,%d\n", s, e, res_hist[i]);
+            ret += count;
+        }
     }
 
 done:
@@ -120,11 +169,10 @@ static int __init benchmod_init(void)
      * Allocate some memory to store the latency values
      */
     sizes = (ssize_t*) kmalloc(CPUS * sizeof(ssize_t), GFP_KERNEL);
-    calltimes = (struct timespec**)
-            kmalloc(CPUS * sizeof(struct timespec*), GFP_KERNEL);
+    histogram = (int**) kmalloc(CPUS * sizeof(int*), GFP_KERNEL);
 
     for(i = 0; i < CPUS; i++) {
-        calltimes[i] = NULL;
+        histogram[i] = NULL;
     }
 
     proc_create_data(PROC_ENTRY_NAME, S_IRUGO | S_IWUGO, NULL,
