@@ -15,3 +15,8 @@ Module.symvers
 *.swp
 *.tmp_versions
 .~lock*
+
+# Output files
+*.hist
+*.out
+*.summary
