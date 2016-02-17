@@ -6,6 +6,14 @@
 
 #include <linux/tracepoint.h>
 
+#define SIZE_8B 8
+#define SIZE_16B 16
+#define SIZE_32B 32
+#define SIZE_64B 64
+#define SIZE_128B 128
+#define SIZE_192B 192
+#define SIZE_256B 256
+
 TRACE_EVENT(
     empty_ioctl_4b,
     TP_PROTO(int payload),
@@ -21,36 +29,93 @@ TRACE_EVENT(
 
 TRACE_EVENT(
     empty_ioctl_8b,
-    TP_PROTO(int p1, int p2),
-    TP_ARGS(p1, p2),
+    TP_PROTO(char payload[SIZE_8B]),
+    TP_ARGS(payload),
     TP_STRUCT__entry(
-        __field(int, p1)
-        __field(int, p2)
+        __array(char, payload, SIZE_8B)
     ),
     TP_fast_assign(
-        entry->p1 = p1,
-        entry->p2 = p2
+        memcpy(__entry->payload, payload, SIZE_8B);
     ),
-    TP_printk("p1 = %d, p2 = %d", __entry->p1, __entry->p2)
+    TP_printk("payload size = %d", SIZE_8B)
 )
 
 TRACE_EVENT(
     empty_ioctl_16b,
-    TP_PROTO(int p1, int p2, int p3, int p4),
-    TP_ARGS(p1, p2, p3, p4),
+    TP_PROTO(char payload[SIZE_16B]),
+    TP_ARGS(payload),
     TP_STRUCT__entry(
-        __field(int, p1)
-        __field(int, p2)
-        __field(int, p3)
-        __field(int, p4)
+        __array(char, payload, SIZE_16B)
     ),
     TP_fast_assign(
-        entry->p1 = p1,
-        entry->p2 = p2,
-        entry->p3 = p3,
-        entry->p4 = p4
+        memcpy(__entry->payload, payload, SIZE_16B);
     ),
-    TP_printk("p1 = %d, p2 = %d", __entry->p1, __entry->p2)
+    TP_printk("payload size = %d", SIZE_16B)
+)
+
+TRACE_EVENT(
+    empty_ioctl_32b,
+    TP_PROTO(char payload[SIZE_32B]),
+    TP_ARGS(payload),
+    TP_STRUCT__entry(
+        __array(char, payload, SIZE_32B)
+    ),
+    TP_fast_assign(
+        memcpy(__entry->payload, payload, SIZE_32B);
+    ),
+    TP_printk("payload size = %d", SIZE_32B)
+)
+
+TRACE_EVENT(
+    empty_ioctl_64b,
+    TP_PROTO(char payload[SIZE_64B]),
+    TP_ARGS(payload),
+    TP_STRUCT__entry(
+        __array(char, payload, SIZE_64B)
+    ),
+    TP_fast_assign(
+        memcpy(__entry->payload, payload, SIZE_64B);
+    ),
+    TP_printk("payload size = %d", SIZE_64B)
+)
+
+TRACE_EVENT(
+    empty_ioctl_128b,
+    TP_PROTO(char payload[SIZE_128B]),
+    TP_ARGS(payload),
+    TP_STRUCT__entry(
+        __array(char, payload, SIZE_128B)
+    ),
+    TP_fast_assign(
+        memcpy(__entry->payload, payload, SIZE_128B);
+    ),
+    TP_printk("payload size = %d", SIZE_128B)
+)
+
+TRACE_EVENT(
+    empty_ioctl_192b,
+    TP_PROTO(char payload[SIZE_192B]),
+    TP_ARGS(payload),
+    TP_STRUCT__entry(
+        __array(char, payload, SIZE_192B)
+    ),
+    TP_fast_assign(
+        memcpy(__entry->payload, payload, SIZE_192B);
+    ),
+    TP_printk("payload size = %d", SIZE_192B)
+)
+
+TRACE_EVENT(
+    empty_ioctl_256b,
+    TP_PROTO(char payload[SIZE_256B]),
+    TP_ARGS(payload),
+    TP_STRUCT__entry(
+        __array(char, payload, SIZE_256B)
+    ),
+    TP_fast_assign(
+        memcpy(__entry->payload, payload, SIZE_256B);
+    ),
+    TP_printk("payload size = %d", SIZE_256B)
 )
 
 #endif /* _TRACE_EMPTY_MODULE_H */
