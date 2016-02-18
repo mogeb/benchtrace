@@ -9,17 +9,37 @@ def error_opt(msg):
 
 def main(args):
     call(["rm", "-rf", "/home/mogeb/git/benchtrace/trace-client/kernel"])
-    longopts = ["tracer=", "workload="]
+    longopts = ["tracer=", "workload=", "size=", "process=", "loop="]
     try:
-        optlist, args = getopt.getopt(args[1:], "t:w:", longopts)
+        optlist, args = getopt.getopt(args[1:], "t:w:s:p:n:z", longopts)
     except getopt.GetoptError as err:
         error_opt(str(err))
 
+    """
+    Default values
+    """
+    loop = 100
+    # buf_size_kb = 524288
+    buf_size_kb = 262144
+    do_work = False
+
+    """
+    Parse arguments
+    """
     for opt, arg in optlist:
         if opt == "--tracer" or opt == "-t":
             tracer_args = arg.split(",")
         elif opt == "--workload" or opt == "-w":
             workload_args = arg.split(",")
+        elif opt == "--size" or opt == "-s":
+            tp_sizes = arg.split(",")
+        elif opt == "--process" or opt == "-p":
+            nprocess = arg.split(",")
+        elif opt == "--loop" or opt == "-n":
+            loop = arg
+        elif opt == "-z":
+            do_work = True
+
 
     for workload_arg in workload_args:
         try:
@@ -27,23 +47,25 @@ def main(args):
         except ImportError as err:
             print('Import error: ' + str(err))
 
-        for tracer_arg in tracer_args:
-            try:
-                tracer = __import__(tracer_arg + "-interface")
-            except ImportError as err:
-                print('Import error: ' + str(err))
+        if do_work:
+            for tracer_arg in tracer_args:
+                try:
+                    tracer = __import__(tracer_arg + "-interface")
+                except ImportError as err:
+                    print('Import error: ' + str(err))
 
-            args = { 'buf_size_kb' : 256 }
-            print()
-            print('----')
-            print('Starting for tracer "' + tracer_arg + '"')
-            print()
-            workload.init()
-            """
-            Function do_work() should take care of enabling/disabling tracing
-            """
-            workload.do_work(tracer, tracer_arg, args)
-            workload.cleanup()
+                args = { 'buf_size_kb' : buf_size_kb, 'tp_sizes': tp_sizes,
+                         'nprocess' : nprocess, 'loop' : loop }
+                print()
+                print('----')
+                print('Starting for tracer "' + tracer_arg + '"')
+                print()
+                workload.init()
+                """
+                Function do_work() should take care of enabling/disabling tracing
+                """
+                workload.do_work(tracer, tracer_arg, args)
+                workload.cleanup()
 
         workload.compile_results()
 

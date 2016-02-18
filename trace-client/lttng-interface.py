@@ -19,10 +19,16 @@ def start_tracing(tracename, args, tracepoints = None):
     except OSError:
         pass
 
-    buf_size = str(args['buf_size_kb'] * 1024)
+    buf_size = str(args['buf_size_kb']) + 'k'
+    tp_size = str(args['tp_size'])
+
+    print('lttng create ' + tracename + ' -o /home/mogeb/git/benchtrace/trace-client')
     call('lttng create ' + tracename + ' -o /home/mogeb/git/benchtrace/trace-client', shell=True)
+    print('lttng enable-channel chan0 --subbuf-size ' + buf_size + ' -k')
     call('lttng enable-channel chan0 --subbuf-size ' + buf_size + ' -k', shell=True)
-    call('lttng enable-event -k -c chan0 empty_ioctl_1b', shell=True)
+    print('lttng enable-event -k -c chan0 empty_ioctl_' + tp_size + 'b')
+    call('lttng enable-event -k -c chan0 empty_ioctl_' + tp_size + 'b', shell=True)
+    print('lttng start')
     call('lttng start', shell=True)
 
 
@@ -33,9 +39,6 @@ def stop_tracing(tracename):
     call('lttng stop', shell=True)
     call('lttng destroy ' + tracename, shell=True)
     print('read /proc/benchmod')
-    # with open('/proc/benchmod') as f:
-    #     for line in f:
-    #         print(line)
 
 
 """
