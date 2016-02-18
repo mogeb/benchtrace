@@ -3,6 +3,9 @@
 #include <linux/proc_fs.h>
 #include <linux/slab.h>
 #include <linux/ioctl.h>
+#include <linux/vmalloc.h>
+
+#include <asm/tsc.h>
 
 #include "benchmod.h"
 
@@ -16,16 +19,41 @@
 
 #define IOCTL_BENCHMARK _IO(BENCHMARK_MAGIC, 0)
 #define IOCTL_READ_RES  _IOR(BENCHMARK_MAGIC, 1, struct timspec*)
+#define NBUCKETS 30
+
+#define irq_stats(x)            (&per_cpu(irq_stat, x))
+
+#define BENCH_PREAMBULE unsigned long _bench_flags; \
+    unsigned int _bench_nmi; \
+    int *_bench_h, _bench_a; \
+    int _bench_cpu = smp_processor_id(); \
+    u64 _bench_ts1 = 0, _bench_ts2 = 0, _bench_diff; \
+    _bench_a = per_cpu(averages, _bench_cpu); \
+    _bench_h = per_cpu_ptr(histos, _bench_cpu); \
+    local_irq_save(_bench_flags); \
+    _bench_nmi = irq_stats(smp_processor_id())->__nmi_count
+
+#define BENCH_GET_TS1 _bench_ts1 = get_cycles();
+
+#define BENCH_GET_TS2 _bench_ts2 = get_cycles();
+
+#define BENCH_APPEND if (_bench_nmi == irq_stats(smp_processor_id())->__nmi_count) { \
+        _bench_diff = _bench_ts2 - _bench_ts1; \
+        if(_bench_diff > NBUCKETS * hist_granularity_ns) { \
+            _bench_h[(NBUCKETS * hist_granularity_ns - 1) / hist_granularity_ns]++; \
+        } else { \
+            _bench_h[_bench_diff / hist_granularity_ns]++; \
+        } \
+        _bench_a += _bench_diff; \
+    } \
+    local_irq_restore(_bench_flags)
 
 /*
  * 50 buckets, each bucket is a interval of 20 ns. With 50 buckets and a
  * granularity of 20ns, the histogram can cover values ranging between 0 and 1
  * microsecond.
  */
-int nbuckets = 50;
 int hist_granularity_ns = 20;
-int **histograms;
-unsigned long *averages;
 ssize_t *sizes;
 char zero_8b[8] = { 0 };
 char zero_16b[16] = { 0 };
@@ -35,6 +63,10 @@ char zero_128b[128] = { 0 };
 char zero_192b[192] = { 0 };
 char zero_256b[256] = { 0 };
 void (*do_tp)(void);
+int print = 0;
+
+DEFINE_PER_CPU(int[NBUCKETS], histos);
+DEFINE_PER_CPU(int, averages);
 
 struct timespec do_ts_diff(struct timespec start, struct timespec end)
 {
@@ -92,11 +124,11 @@ void tp_256b(void)
 int start_benchmark(struct benchmod_arg arg)
 {
     int i, ret = 0, loop = arg.loop;
-    int this_cpu = smp_processor_id();
-    struct timespec ts_start, ts_end, ts_diff;
+    int *h, a; \
+    int cpu; \
 
     printk(KERN_INFO "Start_benchmark on CPU %d, loop = %d, tp_size = %d\n",
-           this_cpu, arg.loop, arg.tp_size);
+           smp_processor_id(), arg.loop, arg.tp_size);
 
     /*
      * Update tracepoint call
@@ -137,47 +169,24 @@ int start_benchmark(struct benchmod_arg arg)
     /*
      * Discard old values that haven't been read.
      */
-    if(histograms[this_cpu]) {
-        kfree(histograms[this_cpu]);
-        histograms[this_cpu] = NULL;
-    }
-    for(i = 0; i < CPUS; i++) {
-        averages[i] = 0;
-    }
-
-    /*
-     * Allocate memory for the buckets of the histogram
-     */
-    histograms[this_cpu] = (int*) kmalloc(nbuckets * sizeof(int), __GFP_NOFAIL);
-    for(i = 0; i < nbuckets; i++) {
-        histograms[this_cpu][i] = 0;
-    }
-
-    if(!histograms[this_cpu]) {
-        printk(KERN_INFO "Couldn't allocate buckets for CPU %d\n", this_cpu);
-        ret = -1;
-        goto done;
+    for_each_online_cpu(cpu) {
+        a = per_cpu(averages, cpu);
+        h = per_cpu_ptr(histos, cpu);
+        for(i = 0; i < NBUCKETS; i++) {
+            h[i] = 0;
+        }
+        a = 0;
     }
 
     for(i = 0; i < loop; i++) {
-        getnstimeofday(&ts_start);
+        BENCH_PREAMBULE;
+        BENCH_GET_TS1;
         do_tp();
-        getnstimeofday(&ts_end);
-
-        ts_diff = do_ts_diff(ts_start, ts_end);
-        if(ts_diff.tv_nsec > nbuckets * hist_granularity_ns) {
-            histograms[this_cpu][(nbuckets * hist_granularity_ns - 1) /
-                    hist_granularity_ns]++;
-        } else {
-            histograms[this_cpu][ts_diff.tv_nsec / hist_granularity_ns]++;
-        }
-        averages[this_cpu] += ts_diff.tv_nsec;
+        BENCH_GET_TS2;
+        BENCH_APPEND;
     }
+    print = 1;
 
-done:
-    if(this_cpu != smp_processor_id()) {
-        printk("Ioctl migrated from %d to %d\n", this_cpu, smp_processor_id());
-    }
     return ret;
 }
 
@@ -209,52 +218,40 @@ long benchmod_ioctl(
 ssize_t benchmod_read(struct file *f, char *buf, size_t size, loff_t *offset)
 {
     ssize_t ret = 0;
-    int i = 0, j = 0, count = 0;
+    int i = 0, count = 0;
     int s, e;
-    int res_hist[nbuckets], loop = 0;
+    int res_hist[NBUCKETS] = { 0 }, loop = 0;
     unsigned long average = 0;
-    int print = 0;
+    int *h, cpu = smp_processor_id();
+    int a;
     char *start;
     start = buf;
 
     printk("BENCHMOD_READ\n");
 
-    if(!histograms) {
-        ret = -1;
-        goto done;
-    }
-
-    for(i = 0; i < nbuckets; i++) {
-        res_hist[i] = 0;
-    }
-
-    for(i = 0; i < CPUS; i++) {
-        average += averages[i];
-        printk("Average on CPU %d = %ld\n", i, averages[i]);
-        if(histograms[i]) {
-            print = 1;
-            for(j = 0; j < nbuckets; j++) {
-                res_hist[j] += histograms[i][j];
-            }
-            kfree(histograms[i]);
-            histograms[i] = NULL;
+    for_each_online_cpu(cpu) {
+        a = per_cpu(averages, cpu);
+        h = per_cpu_ptr(histos, cpu);
+        for(i = 0; i < NBUCKETS; i++) {
+            res_hist[i] += h[i];
         }
+        average += a;
     }
 
     if(print) {
-        for(i = 0; i < nbuckets; i++) {
+        for(i = 0; i < NBUCKETS; i++) {
             s = i * hist_granularity_ns;
             e = (i + 1) * hist_granularity_ns;
             count = sprintf(start + ret, "%d,%d,%d\n", s, e, res_hist[i]);
             ret += count;
             loop += res_hist[i];
         }
-
         average /= loop;
         count = sprintf(start + ret, "%ld\n", average);
+        ret += count;
     }
+    print = 0;
 
-done:
     return ret;
 }
 
@@ -267,20 +264,14 @@ static const struct file_operations empty_mod_operations = {
 /* Initialize the module - Register the character device */
 static int __init benchmod_init(void)
 {
-    int ret = 0, i = 0;
+    int ret = 0, cpu;
+    int *h;
     printk(KERN_INFO "Init benchmod\n");
 
-    /*
-     * Allocate some memory to store the latency values
-     */
-    sizes = (ssize_t*) kmalloc(CPUS * sizeof(ssize_t), GFP_KERNEL);
-    histograms = (int**) kmalloc(CPUS * sizeof(int*), GFP_KERNEL);
-    averages = (unsigned long*) kmalloc(CPUS * sizeof(unsigned long),
-                                        GFP_KERNEL);
-
-    for(i = 0; i < CPUS; i++) {
-        histograms[i] = NULL;
-        averages[i] = 0;
+    for_each_online_cpu(cpu) {
+        printk("CPU %d is allocating\n", cpu);
+        h = per_cpu_ptr(histos, cpu);
+        h = (int*) vmalloc(NBUCKETS * sizeof(int));
     }
 
     proc_create_data(PROC_ENTRY_NAME, S_IRUGO | S_IWUGO, NULL,
@@ -301,4 +292,3 @@ module_exit(benchmod_exit)
 MODULE_LICENSE("GPL and additional rights");
 MODULE_AUTHOR("Mohamad Gebai");
 MODULE_DESCRIPTION("Tracing benchmark module");
-
