@@ -11,7 +11,7 @@ def main(args):
     call(["rm", "-rf", "/home/mogeb/git/benchtrace/trace-client/kernel"])
     longopts = ["tracer=", "workload=", "size=", "process=", "loop="]
     try:
-        optlist, args = getopt.getopt(args[1:], "t:w:s:p:n:z", longopts)
+        optlist, args = getopt.getopt(args[1:], "t:w:s:p:n:zb:", longopts)
     except getopt.GetoptError as err:
         error_opt(str(err))
 
@@ -39,6 +39,8 @@ def main(args):
             loop = arg
         elif opt == "-z":
             do_work = True
+        elif opt == "-b":
+            buf_size_kb = arg
 
 
     for workload_arg in workload_args:
