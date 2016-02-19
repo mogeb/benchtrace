@@ -27,26 +27,26 @@
     unsigned int _bench_nmi; \
     int *_bench_h; \
     unsigned long *_bench_a; \
-    u64 _bench_ts1 = 0, _bench_ts2 = 0, _bench_diff; \
+    struct timespec _bench_ts1, _bench_ts2, _bench_diff; \
     _bench_a = this_cpu_ptr(&averages); \
     _bench_h = this_cpu_ptr(histos); \
     local_irq_save(_bench_flags); \
     _bench_nmi = irq_stats(smp_processor_id())->__nmi_count
 
-#define BENCH_GET_TS1 _bench_ts1 = get_cycles();
+#define BENCH_GET_TS1 getnstimeofday(&_bench_ts1);
 
-#define BENCH_GET_TS2 _bench_ts2 = get_cycles();
-
-#define BENCH_APPEND if (_bench_nmi == irq_stats(smp_processor_id())->__nmi_count) { \
-        _bench_diff = _bench_ts2 - _bench_ts1; \
-        if(_bench_diff > NBUCKETS * hist_granularity_ns) { \
+#define BENCH_GET_TS2 getnstimeofday(&_bench_ts2); \
+        if (_bench_nmi == irq_stats(smp_processor_id())->__nmi_count) { \
+        _bench_diff = do_ts_diff(_bench_ts1, _bench_ts2); \
+        if(_bench_diff.tv_nsec > NBUCKETS * hist_granularity_ns) { \
             _bench_h[(NBUCKETS * hist_granularity_ns - 1) / hist_granularity_ns]++; \
         } else { \
-            _bench_h[_bench_diff / hist_granularity_ns]++; \
+            _bench_h[_bench_diff.tv_nsec / hist_granularity_ns]++; \
         } \
-        *_bench_a += (unsigned long)_bench_diff; \
-        printk("_bench_a = %ld, bench_diff = %ld\n", *_bench_a, (unsigned long)_bench_diff); \
-    } \
+        *_bench_a += (unsigned long)_bench_diff.tv_nsec; \
+        }
+
+#define BENCH_APPEND \
     local_irq_restore(_bench_flags)
 
 /*
@@ -54,7 +54,7 @@
  * granularity of 20ns, the histogram can cover values ranging between 0 and 1
  * microsecond.
  */
-int hist_granularity_ns = 10;
+int hist_granularity_ns = 5;
 ssize_t *sizes;
 char zero_8b[8] = { 0 };
 char zero_16b[16] = { 0 };
@@ -186,13 +186,13 @@ int start_benchmark(struct benchmod_arg arg)
         }
     }
 
+    BENCH_PREAMBULE;
     for(i = 0; i < loop; i++) {
-        BENCH_PREAMBULE;
         BENCH_GET_TS1;
         do_tp();
         BENCH_GET_TS2;
-        BENCH_APPEND;
     }
+    BENCH_APPEND;
     print = 1;
 
 done:
