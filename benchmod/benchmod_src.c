@@ -19,7 +19,7 @@
 
 #define IOCTL_BENCHMARK _IO(BENCHMARK_MAGIC, 0)
 #define IOCTL_READ_RES  _IOR(BENCHMARK_MAGIC, 1, struct timspec*)
-#define NBUCKETS 30
+#define NBUCKETS 100
 
 #define irq_stats(x)            (&per_cpu(irq_stat, x))
 
@@ -54,7 +54,7 @@
  * granularity of 20ns, the histogram can cover values ranging between 0 and 1
  * microsecond.
  */
-int hist_granularity_ns = 20;
+int hist_granularity_ns = 10;
 ssize_t *sizes;
 char zero_8b[8] = { 0 };
 char zero_16b[16] = { 0 };
