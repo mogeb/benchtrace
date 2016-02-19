@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pylab
+import matplotlib.ticker as ticker
 import os
+from matplotlib.font_manager import FontProperties
 from collections import defaultdict
 from statistics import *
 from subprocess import call
@@ -30,22 +32,10 @@ def cleanup(args = None):
     return
 
 
-def is_outlier(points, thresh=500000000):
-    if len(points.shape) == 1:
-        points = points[:,None]
-    median = np.median(points, axis=0)
-    diff = np.sum((points - median)**2, axis=-1)
-    diff = np.sqrt(diff)
-    med_abs_deviation = np.median(diff)
-
-    modified_z_score = 0.6745 * diff / med_abs_deviation
-
-    return modified_z_score > thresh
-
-
-def compile_results():
-    compile_bars()
-    compile_graphs()
+def compile_results(args):
+    compile_bars(args)
+    # compile_graphs(args)
+    compile_percentiles(args)
     return
 
 
@@ -78,43 +68,100 @@ def compile_graphs():
     return
 
 
-def compile_bars():
+"""
+Will analyze the .hist files.
+"""
+def compile_percentiles(args):
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
-    width = 0.15       # the width of the bars
+    byte_sizes = ['4', '32', '64', '128', '192', '256']
+    nprocesses = ['1']
+    tracers = ['none', 'lttng', 'ftrace', 'perf']
+    perc = 0.90
 
-    # for bytes in ['4', '8', '16', '32', '64', '128', '192', '256']:
-    for bytes in ['4', '64', '128', '192', '256']:
-        lttng_values = np.genfromtxt(res_dir + 'lttng_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
-                      names=['min', 'max', 'num'], dtype=None, skip_footer=1)
+    for nprocess in nprocesses:
+        for tracer in tracers:
+            percentiles = []
+            for bytes in byte_sizes:
+                fname = res_dir + tracer + '_' + bytes + 'bytes_' + nprocess + 'process.hist'
+                values = np.genfromtxt(fname, delimiter=',', skip_header=0,
+                              names=['min', 'max', 'num'], dtype=None, skip_footer=1)
+                percentiles.append(getPercentile(values['max'], values['num'], perc))
+            plt.plot(byte_sizes, percentiles, 'o-', label=tracer)
 
-        N = len(lttng_values['num'])
-        ind = np.arange(N)  # the x locations for the groups
+        plt.axis([0, 310, 50, 210])
+        plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint')
+        plt.xlabel('Payload size in bytes')
+        plt.ylabel('Time in ns')
+        fontP = FontProperties()
+        fontP.set_size('small')
 
-        fig, ax = plt.subplots()
-
-        none_values = np.genfromtxt(res_dir + 'none_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
-                      names=['min', 'max', 'num'], dtype=None, skip_footer=1)
-        ftrace_values = np.genfromtxt(res_dir + 'ftrace_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
-                      names=['min', 'max', 'num'], dtype=None, skip_footer=1)
-        perf_values = np.genfromtxt(res_dir + 'perf_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
-                      names=['min', 'max', 'num'], dtype=None, skip_footer=1)
-        # rect_none = ax.bar(ind, none_values['totaltime'], width, color='b')
-
-        rect_none = ax.bar(ind, none_values['num'], width, color='r')
-        rect_lttng = ax.bar(ind + width, lttng_values['num'], width, color='b')
-        rect_ftrace = ax.bar(ind + 2 * width, ftrace_values['num'], width, color='y')
-        rect_perf = ax.bar(ind + 3 * width, perf_values['num'], width, color='m')
-
-        # add some text for labels, title and axes ticks
-        ax.set_ylabel('Time in ns')
-        ax.set_title('Time taken to do N calls')
-        ax.set_xticks(ind + width)
-        ax.set_xticklabels(lttng_values['max'])
-
-        ax.legend((rect_none[0], rect_lttng[0], rect_ftrace[0], rect_perf[0]), ('None', 'LTTng', 'Ftrace', 'Perf'))
-
-        plt.axis([0, 20, 0, 1000000])
+        imgname = 'results/' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
+        plt.savefig(imgname + '.png')
+        plt.savefig(imgname + '.pdf')
         plt.show()
+
+    return values['max'], values['num'], percentiles
+
+def compile_bars(args):
+    res_dir = '/home/mogeb/git/benchtrace/trace-client/'
+    width = 0.2       # the width of the bars
+
+    none_percentiles = []
+    lttng_percentiles = []
+    ftrace_percentiles = []
+    perf_percentiles = []
+    byte_sizes = ['4', '64', '128', '192', '256']
+    tracers = ['none', 'lttng', 'ftrace', 'perf']
+    nprocesses = ['1']
+
+    for nprocess in nprocesses:
+        for bytes in byte_sizes:
+            lttng_values = np.genfromtxt(res_dir + 'lttng_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
+                          names=['min', 'max', 'num'], dtype=None, skip_footer=1)
+            lttng_percentiles.append(getPercentile(lttng_values['max'], lttng_values['num'], 0.9))
+
+            N = len(lttng_values['num'])
+            ind = np.arange(N)  # the x locations for the groups
+
+            fig, ax = plt.subplots()
+
+            none_values = np.genfromtxt(res_dir + 'none_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
+                          names=['min', 'max', 'num'], dtype=None, skip_footer=1)
+            none_percentiles.append(getPercentile(none_values['max'], none_values['num'], 0.9))
+
+            ftrace_values = np.genfromtxt(res_dir + 'ftrace_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
+                          names=['min', 'max', 'num'], dtype=None, skip_footer=1)
+            ftrace_percentiles.append(getPercentile(ftrace_values['max'], ftrace_values['num'], 0.9))
+
+            perf_values = np.genfromtxt(res_dir + 'perf_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
+                          names=['min', 'max', 'num'], dtype=None, skip_footer=1)
+            perf_percentiles.append(getPercentile(perf_values['max'], perf_values['num'], 0.9))
+            # rect_none = ax.bar(ind, none_values['totaltime'], width, color='b')
+
+            rect_none = ax.bar(ind, none_values['num'], width, color='r')
+            rect_lttng = ax.bar(ind + width, lttng_values['num'], width, color='b')
+            rect_ftrace = ax.bar(ind + 2 * width, ftrace_values['num'], width, color='y')
+            rect_perf = ax.bar(ind + 3 * width, perf_values['num'], width, color='m')
+
+            # add some text for labels, title and axes ticks
+            ax.set_ylabel('Time in ns')
+            ax.set_title('Time taken to do N calls')
+            ax.set_xticks(ind + width)
+            ax.set_xticklabels(lttng_values['max'])
+
+            ax.legend((rect_none[0], rect_lttng[0], rect_ftrace[0], rect_perf[0]), ('None', 'LTTng', 'Ftrace', 'Perf'))
+
+            fontP = FontProperties()
+            fontP.set_size('small')
+            plt.axis([10, 40, 0, int(args['loop'])])
+
+            imgname = 'results/hist_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
+            fig = plt.gcf()
+            fig.set_size_inches(12, 7)
+            fig.savefig('test2png.png', dpi=100)
+            plt.savefig(imgname + '.png')
+            plt.savefig(imgname + '.pdf')
+
     return
 
 
@@ -219,3 +266,48 @@ def compile_histograms():
     # plt.grid(True)
     #
     # plt.show()
+
+
+
+def is_outlier(points, thresh=500000000):
+    if len(points.shape) == 1:
+        points = points[:,None]
+    median = np.median(points, axis=0)
+    diff = np.sum((points - median)**2, axis=-1)
+    diff = np.sqrt(diff)
+    med_abs_deviation = np.median(diff)
+
+    modified_z_score = 0.6745 * diff / med_abs_deviation
+
+    return modified_z_score > thresh
+
+
+"""
+Get the nth percentile from values
+"""
+def getPercentile(values, density, n):
+    population = 0
+    count = 0
+
+    if not n < 1:
+        print('N must be smaller than 1')
+        return -1
+
+    if len(values) != len(density):
+        print('Values and density should be the same size')
+        return -1
+
+    for i in density:
+        population += i
+
+    for i in range(1, len(density)):
+        count += density[i]
+        if count > population * n:
+            return values[i]
+
+    return density[len(density)]
+
+
+
+
+

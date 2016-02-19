@@ -42,6 +42,10 @@ def main(args):
         elif opt == "-b":
             buf_size_kb = arg
 
+    if int(buf_size_kb) > 262144:
+        print("OVERRIDING BUFFER SIZE TO 262155")
+        buf_size_kb = str(262144)
+
 
     for workload_arg in workload_args:
         try:
@@ -49,6 +53,8 @@ def main(args):
         except ImportError as err:
             print('Import error: ' + str(err))
 
+        args = { 'buf_size_kb' : buf_size_kb, 'tp_sizes': tp_sizes,
+                 'nprocess' : nprocess, 'loop' : loop }
         if do_work:
             for tracer_arg in tracer_args:
                 try:
@@ -56,8 +62,6 @@ def main(args):
                 except ImportError as err:
                     print('Import error: ' + str(err))
 
-                args = { 'buf_size_kb' : buf_size_kb, 'tp_sizes': tp_sizes,
-                         'nprocess' : nprocess, 'loop' : loop }
                 print()
                 print('----')
                 print('Starting for tracer "' + tracer_arg + '"')
@@ -69,7 +73,7 @@ def main(args):
                 workload.do_work(tracer, tracer_arg, args)
                 workload.cleanup()
 
-        workload.compile_results()
+        workload.compile_results(args)
 
 
 if __name__ == "__main__":
