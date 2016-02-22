@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+#include <sched.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
@@ -9,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <linux/ioctl.h>
+
 
 #include "../benchmod/benchmod.h"
 
@@ -69,6 +72,7 @@ pthread_barrier_t barrier;
 struct ioctl_args {
     int fd;
     int ntimes;
+    int id;
 };
 
 static inline int do_ioctl_benchmark(int fd, struct benchmod_arg *args)
@@ -169,8 +173,7 @@ void *do_work(void *args)
     fd = open(BENCHMOD_NAME, O_RDONLY);
 
     pthread_barrier_wait(&barrier);
-    // This ioctl will write a tracepoint in a tight loop
-
+    /* This ioctl will write a tracepoint in a tight loop */
     ret = do_ioctl_benchmark(fd, &benchmod_args);
     if(ret) {
         printf("Error ioctl %d, %s\n", 0, strerror(errno));
@@ -192,6 +195,7 @@ int main(int argc, char **argv)
     struct ioctl_args ioctl_arg;
     poptContext pc;
     pthread_t *threads;
+    int ncpus = sysconf(_SC_NPROCESSORS_ONLN);
 
     parse_args(argc, argv, &pc);
     printf("nthreads = %d, loop = %d\n", popt_args.nthreads, popt_args.loop);
@@ -208,7 +212,16 @@ int main(int argc, char **argv)
 
     pthread_barrier_init(&barrier, NULL, popt_args.nthreads + 1);
     for(i = 0; i < popt_args.nthreads; i++) {
-        pthread_create(&threads[i], NULL, do_work, (void*)&ioctl_arg);
+        ioctl_arg.id = i;
+        /* Set CPU affinity for each thread*/
+        cpu_set_t cpu_set;
+        pthread_attr_t attr;
+        CPU_ZERO(&cpu_set);
+        CPU_SET(i % ncpus, &cpu_set);
+        pthread_attr_init(&attr);
+        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set), &cpu_set);
+
+        pthread_create(&threads[i], &attr, do_work, (void*)&ioctl_arg);
     }
 
     pthread_barrier_wait(&barrier);
