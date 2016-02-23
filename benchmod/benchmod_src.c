@@ -43,7 +43,7 @@
         } else { \
             _bench_h[_bench_diff.tv_nsec / hist_granularity_ns]++; \
         } \
-        *_bench_a += (unsigned long)_bench_diff.tv_nsec; \
+        *_bench_a += _bench_diff.tv_sec * 1000000000 + (unsigned long)_bench_diff.tv_nsec; \
         }
 
 #define BENCH_APPEND \
@@ -187,11 +187,11 @@ int start_benchmark(struct benchmod_arg arg)
     }
 
     BENCH_PREAMBULE;
+    BENCH_GET_TS1;
     for(i = 0; i < loop; i++) {
-        BENCH_GET_TS1;
         do_tp();
-        BENCH_GET_TS2;
     }
+    BENCH_GET_TS2;
     BENCH_APPEND;
     print = 1;
 
