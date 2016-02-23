@@ -96,8 +96,8 @@ def compile_percentiles(args):
         fontP.set_size('small')
 
         imgname = 'results/' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
-        plt.savefig(imgname + '.png')
-        plt.savefig(imgname + '.pdf')
+        # plt.savefig(imgname + '.png')
+        # plt.savefig(imgname + '.pdf')
         plt.show()
 
     return values['max'], values['num'], percentiles
@@ -158,9 +158,9 @@ def compile_bars(args):
             imgname = 'results/hist_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
             fig = plt.gcf()
             fig.set_size_inches(12, 7)
-            fig.savefig('test2png.png', dpi=100)
-            plt.savefig(imgname + '.png')
-            plt.savefig(imgname + '.pdf')
+            # fig.savefig('test2png.png', dpi=100)
+            # plt.savefig(imgname + '.png')
+            # plt.savefig(imgname + '.pdf')
 
     return
 

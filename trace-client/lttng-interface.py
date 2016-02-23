@@ -34,6 +34,10 @@ def start_tracing(tracename, args, tracepoints = None):
     call('lttng enable-channel chan0 --subbuf-size ' + buf_size_str + ' -k', shell=True)
     print('lttng enable-event -k -c chan0 empty_ioctl_' + tp_size + 'b')
     call('lttng enable-event -k -c chan0 empty_ioctl_' + tp_size + 'b', shell=True)
+
+    print('lttng enable-event --syscall -a -k -c chan0')
+    call('lttng enable-event --syscall -a -k -c chan0', shell=True)
+
     print('lttng start')
     call('lttng start', shell=True)
 
