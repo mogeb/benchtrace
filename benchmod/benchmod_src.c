@@ -122,6 +122,11 @@ void tp_256b(void)
     trace_empty_ioctl_256b(zero_256b);
 }
 
+void tp_1kb(void)
+{
+    trace_empty_ioctl_1kb(zero_256b, zero_256b, zero_256b, zero_256b);
+}
+
 int start_benchmark(struct benchmod_arg arg)
 {
     int i, ret = 0, loop = arg.loop;
@@ -162,6 +167,10 @@ int start_benchmark(struct benchmod_arg arg)
 
     case 256:
         do_tp = tp_256b;
+        break;
+
+    case 1024:
+        do_tp = tp_1kb;
         break;
 
     default:
