@@ -8,6 +8,7 @@
 #include <asm/tsc.h>
 
 #include "benchmod.h"
+//#include "measure.h"
 
 #define CREATE_TRACE_POINTS
 #include "empty_tp.h"
@@ -20,6 +21,7 @@
 #define IOCTL_BENCHMARK _IO(BENCHMARK_MAGIC, 0)
 #define IOCTL_READ_RES  _IOR(BENCHMARK_MAGIC, 1, struct timspec*)
 #define NBUCKETS 100
+#define BILLION 1000000000
 
 #define irq_stats(x)            (&per_cpu(irq_stat, x))
 
@@ -43,7 +45,7 @@
         } else { \
             _bench_h[_bench_diff.tv_nsec / hist_granularity_ns]++; \
         } \
-        *_bench_a += _bench_diff.tv_sec * 1000000000 + (unsigned long)_bench_diff.tv_nsec; \
+        *_bench_a += _bench_diff.tv_sec * BILLION + (unsigned long)_bench_diff.tv_nsec; \
         }
 
 #define BENCH_APPEND \
@@ -80,6 +82,17 @@ struct timespec do_ts_diff(struct timespec start, struct timespec end)
         temp.tv_nsec = end.tv_nsec - start.tv_nsec;
     }
     return temp;
+}
+
+struct timespec do_ts_add(struct timespec t1, struct timespec t2)
+{
+    long sec = t2.tv_sec + t1.tv_sec;
+    long nsec = t2.tv_nsec + t1.tv_nsec;
+    if (nsec >= BILLION) {
+        nsec -= BILLION;
+        sec++;
+    }
+    return (struct timespec){ .tv_sec = sec, .tv_nsec = nsec };
 }
 
 void tp_4b(void)
@@ -120,6 +133,16 @@ void tp_192b(void)
 void tp_256b(void)
 {
     trace_empty_ioctl_256b(zero_256b);
+}
+
+void tp_512b(void)
+{
+    trace_empty_ioctl_512b(zero_256b, zero_256b);
+}
+
+void tp_768b(void)
+{
+    trace_empty_ioctl_768b(zero_256b, zero_256b, zero_256b);
 }
 
 void tp_1kb(void)
@@ -169,6 +192,14 @@ int start_benchmark(struct benchmod_arg arg)
         do_tp = tp_256b;
         break;
 
+    case 512:
+        do_tp = tp_512b;
+        break;
+
+    case 768:
+        do_tp = tp_768b;
+        break;
+
     case 1024:
         do_tp = tp_1kb;
         break;
@@ -196,11 +227,11 @@ int start_benchmark(struct benchmod_arg arg)
     }
 
     BENCH_PREAMBULE;
-    BENCH_GET_TS1;
     for(i = 0; i < loop; i++) {
+        BENCH_GET_TS1;
         do_tp();
+        BENCH_GET_TS2;
     }
-    BENCH_GET_TS2;
     BENCH_APPEND;
     print = 1;
 

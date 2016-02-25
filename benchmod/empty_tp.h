@@ -119,6 +119,39 @@ TRACE_EVENT(
 )
 
 TRACE_EVENT(
+    empty_ioctl_512b,
+    TP_PROTO(char p1[SIZE_256B], char p2[SIZE_256B]),
+    TP_ARGS(p1, p2),
+    TP_STRUCT__entry(
+        __array(char, p1, SIZE_256B)
+        __array(char, p2, SIZE_256B)
+    ),
+    TP_fast_assign(
+        memcpy(__entry->p1, p1, SIZE_256B);
+        memcpy(__entry->p2, p2, SIZE_256B);
+    ),
+    TP_printk("payload size = %d", 512)
+)
+
+TRACE_EVENT(
+    empty_ioctl_768b,
+    TP_PROTO(char p1[SIZE_256B], char p2[SIZE_256B],
+             char p3[SIZE_256B]),
+    TP_ARGS(p1, p2, p3),
+    TP_STRUCT__entry(
+        __array(char, p1, SIZE_256B)
+        __array(char, p2, SIZE_256B)
+        __array(char, p3, SIZE_256B)
+    ),
+    TP_fast_assign(
+        memcpy(__entry->p1, p1, SIZE_256B);
+        memcpy(__entry->p2, p2, SIZE_256B);
+        memcpy(__entry->p3, p3, SIZE_256B);
+    ),
+    TP_printk("payload size = %d", 768)
+)
+
+TRACE_EVENT(
     empty_ioctl_1kb,
     TP_PROTO(char p1[SIZE_256B], char p2[SIZE_256B],
              char p3[SIZE_256B], char p4[SIZE_256B]),
@@ -135,8 +168,7 @@ TRACE_EVENT(
         memcpy(__entry->p3, p3, SIZE_256B);
         memcpy(__entry->p4, p4, SIZE_256B);
     ),
-    TP_printk("payload sizes = %ld %ld %ld %ld", sizeof(__entry->p1),
-              sizeof(__entry->p2), sizeof(__entry->p3), sizeof(__entry->p4))
+    TP_printk("payload sizes = %d", 1024)
 )
 
 #endif /* _TRACE_EMPTY_MODULE_H */
