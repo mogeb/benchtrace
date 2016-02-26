@@ -8,7 +8,7 @@
 #include <asm/tsc.h>
 
 #include "benchmod.h"
-//#include "measure.h"
+#include "measure.h"
 
 #define CREATE_TRACE_POINTS
 #include "empty_tp.h"
@@ -20,36 +20,7 @@
 
 #define IOCTL_BENCHMARK _IO(BENCHMARK_MAGIC, 0)
 #define IOCTL_READ_RES  _IOR(BENCHMARK_MAGIC, 1, struct timspec*)
-#define NBUCKETS 100
 #define BILLION 1000000000
-
-#define irq_stats(x)            (&per_cpu(irq_stat, x))
-
-#define BENCH_PREAMBULE unsigned long _bench_flags; \
-    unsigned int _bench_nmi; \
-    int *_bench_h; \
-    unsigned long *_bench_a; \
-    struct timespec _bench_ts1, _bench_ts2, _bench_diff; \
-    _bench_a = this_cpu_ptr(&averages); \
-    _bench_h = this_cpu_ptr(histos); \
-    local_irq_save(_bench_flags); \
-    _bench_nmi = irq_stats(smp_processor_id())->__nmi_count
-
-#define BENCH_GET_TS1 getnstimeofday(&_bench_ts1);
-
-#define BENCH_GET_TS2 getnstimeofday(&_bench_ts2); \
-        if (_bench_nmi == irq_stats(smp_processor_id())->__nmi_count) { \
-        _bench_diff = do_ts_diff(_bench_ts1, _bench_ts2); \
-        if(_bench_diff.tv_nsec > NBUCKETS * hist_granularity_ns) { \
-            _bench_h[(NBUCKETS * hist_granularity_ns - 1) / hist_granularity_ns]++; \
-        } else { \
-            _bench_h[_bench_diff.tv_nsec / hist_granularity_ns]++; \
-        } \
-        *_bench_a += _bench_diff.tv_sec * BILLION + (unsigned long)_bench_diff.tv_nsec; \
-        }
-
-#define BENCH_APPEND \
-    local_irq_restore(_bench_flags)
 
 /*
  * 50 buckets, each bucket is a interval of 20 ns. With 50 buckets and a
@@ -227,11 +198,11 @@ int start_benchmark(struct benchmod_arg arg)
     }
 
     BENCH_PREAMBULE;
+    BENCH_GET_TS1;
     for(i = 0; i < loop; i++) {
-        BENCH_GET_TS1;
         do_tp();
-        BENCH_GET_TS2;
     }
+    BENCH_GET_TS2;
     BENCH_APPEND;
     print = 1;
 
@@ -301,6 +272,9 @@ ssize_t benchmod_read(struct file *f, char *buf, size_t size, loff_t *offset)
     }
     print = 0;
 
+    printk("About to output measurements\n");
+    output_measurements();
+
     return ret;
 }
 
@@ -329,6 +303,9 @@ static int __init benchmod_init(void)
     proc_create_data(PROC_ENTRY_NAME, S_IRUGO | S_IWUGO, NULL,
             &empty_mod_operations, NULL);
 
+    printk("About to allocate measurements\n");
+    alloc_measurements();
+
     return ret;
 }
 
@@ -336,6 +313,8 @@ static void __exit benchmod_exit(void)
 {
     printk(KERN_INFO "Exit benchmod\n");
     remove_proc_entry(PROC_ENTRY_NAME, NULL);
+    printk("About to free measurements\n");
+    free_measurements();
 }
 
 module_init(benchmod_init)
