@@ -3,6 +3,7 @@
 *.ko
 *.order
 Module.symvers
+bin/
 
 # QtCreator files
 *.creator

@@ -3,9 +3,15 @@ SOURCE = allcalls.c
 LIBS += -lpopt -lpthread
 CFLAGS = -g
 BIN = allcalls
+BUILDDIR = bin
 
-all:
-	$(CC) $(CFLAGS) $(SOURCE) -o $(BIN) $(LIBS)
+all: dir $(BUILDDIR)/$(BIN)
+
+dir:
+	mkdir -p $(BUILDDIR)
+
+$(BUILDDIR)/$(BIN):
+	$(CC) $(CFLAGS) $(SOURCE) -o $(BUILDDIR)/$(BIN) $(LIBS)
 
 clean:
-	rm $(BIN)
+	rm -rf $(BUILDDIR)
