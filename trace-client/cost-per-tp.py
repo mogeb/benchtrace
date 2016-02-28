@@ -26,10 +26,10 @@ def do_work(tracer, tracer_name, args = None):
             args['tp_size'] = tp_size_str
             tracer.start_tracing('session-test', args)
             if tracer_name == 'perf':
-                call("perf record -e 'empty_tp:empty_ioctl_" + tp_size_str + "b' /home/mogeb/git/benchtrace/all-calls/allcalls -t "
+                call("perf record -e 'empty_tp:empty_ioctl_" + tp_size_str + "b' /home/mogeb/git/benchtrace/all-calls/bin/allcalls -t "
                      + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
             else:
-                call("/home/mogeb/git/benchtrace/all-calls/allcalls -t "
+                call("/home/mogeb/git/benchtrace/all-calls/bin/allcalls -t "
                      + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
             tracer.stop_tracing('session-test')
 
