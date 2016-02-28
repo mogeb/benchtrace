@@ -185,16 +185,15 @@ int start_benchmark(struct benchmod_arg arg)
     for_each_online_cpu(cpu) {
         a = per_cpu_ptr(&averages, cpu);
         h = per_cpu_ptr(histos, cpu);
-        for(i = 0; i < NBUCKETS; i++) {
-            h[i] = 0;
-        }
-        if(a) {
-            *a = 0;
-        }
-        else {
+        if(!a || !h) {
+            printk("A or H are null\n");
             ret = -1;
             goto done;
         }
+        for(i = 0; i < NBUCKETS; i++) {
+            h[i] = 0;
+        }
+        *a = 0;
     }
 
     BENCH_PREAMBULE;
