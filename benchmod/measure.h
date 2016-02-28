@@ -26,16 +26,15 @@
 #include <linux/perf_event.h>
 #include "wrapper/vmalloc.h"
 
-#define NBUCKETS 100
-
 #define irq_stats(x)            (&per_cpu(irq_stat, x))
 
-//#define PER_CPU_ALLOC 10000
+#define PER_CPU_ALLOC 10000
 struct tracker_measurement_entry {
     u64 pmu1;
     u64 pmu2;
     u64 pmu3;
     u64 pmu4;
+    u64 latency;
 };
 
 struct tracker_measurement_cpu_perf {
@@ -44,6 +43,7 @@ struct tracker_measurement_cpu_perf {
     struct perf_event *event3;
     struct perf_event *event4;
     struct tracker_measurement_entry *entries;
+    unsigned int pos;
 };
 
 struct perf_event_attr attr1, attr2, attr3, attr4;
@@ -52,9 +52,6 @@ static struct tracker_measurement_cpu_perf __percpu *tracker_cpu_perf;
 
 #define BENCH_PREAMBULE unsigned long _bench_flags; \
         unsigned int _bench_nmi; \
-        int _bench_pos; \
-        int *_bench_h; \
-        unsigned long *_bench_a; \
         struct tracker_measurement_cpu_perf *_bench_c; \
         struct timespec _bench_ts1, _bench_ts2, _bench_diff; \
         u64 _bench_pmu1_1 = 0, _bench_pmu1_2 = 0; \
@@ -62,8 +59,6 @@ static struct tracker_measurement_cpu_perf __percpu *tracker_cpu_perf;
         u64 _bench_pmu3_1 = 0, _bench_pmu3_2 = 0; \
         u64 _bench_pmu4_1 = 0, _bench_pmu4_2 = 0; \
         _bench_c = this_cpu_ptr(tracker_cpu_perf); \
-        _bench_a = this_cpu_ptr(&averages); \
-        _bench_h = this_cpu_ptr(histos); \
         local_irq_save(_bench_flags); \
         _bench_nmi = irq_stats(smp_processor_id())->__nmi_count
 
@@ -77,7 +72,9 @@ static struct tracker_measurement_cpu_perf __percpu *tracker_cpu_perf;
         _bench_pmu4_1 = local64_read(&_bench_c->event4->count); \
         getnstimeofday(&_bench_ts1);
 
-#define BENCH_GET_TS2 getnstimeofday(&_bench_ts2); \
+#define BENCH_GET_TS2 if (_bench_nmi == irq_stats(smp_processor_id())->__nmi_count) { \
+        if (_bench_c->pos < PER_CPU_ALLOC) { \
+        getnstimeofday(&_bench_ts2); \
         _bench_c->event1->pmu->read(_bench_c->event1); \
         _bench_c->event2->pmu->read(_bench_c->event2); \
         _bench_c->event3->pmu->read(_bench_c->event3); \
@@ -86,19 +83,14 @@ static struct tracker_measurement_cpu_perf __percpu *tracker_cpu_perf;
         _bench_pmu2_2 = local64_read(&_bench_c->event2->count); \
         _bench_pmu3_2 = local64_read(&_bench_c->event3->count); \
         _bench_pmu4_2 = local64_read(&_bench_c->event4->count); \
-        if (_bench_nmi == irq_stats(smp_processor_id())->__nmi_count) { \
         _bench_diff = do_ts_diff(_bench_ts1, _bench_ts2); \
-        if(_bench_diff.tv_nsec > NBUCKETS * hist_granularity_ns) { \
-            _bench_pos = (NBUCKETS * hist_granularity_ns - 1) / hist_granularity_ns; \
-        } else { \
-            _bench_pos = _bench_diff.tv_nsec / hist_granularity_ns; \
+        _bench_c->entries[_bench_c->pos].latency = _bench_diff.tv_sec * BILLION + (unsigned long)_bench_diff.tv_nsec; \
+        _bench_c->entries[_bench_c->pos].pmu1 += _bench_pmu1_2 - _bench_pmu1_1; \
+        _bench_c->entries[_bench_c->pos].pmu2 += _bench_pmu2_2 - _bench_pmu2_1; \
+        _bench_c->entries[_bench_c->pos].pmu3 += _bench_pmu3_2 - _bench_pmu3_1; \
+        _bench_c->entries[_bench_c->pos].pmu4 += _bench_pmu4_2 - _bench_pmu4_1; \
+        _bench_c->pos++; \
         } \
-        _bench_h[_bench_pos]++; \
-        *_bench_a += _bench_diff.tv_sec * BILLION + (unsigned long)_bench_diff.tv_nsec; \
-        _bench_c->entries[_bench_pos].pmu1 += _bench_pmu1_2 - _bench_pmu1_1; \
-        _bench_c->entries[_bench_pos].pmu2 += _bench_pmu2_2 - _bench_pmu2_1; \
-        _bench_c->entries[_bench_pos].pmu3 += _bench_pmu3_2 - _bench_pmu3_1; \
-        _bench_c->entries[_bench_pos].pmu4 += _bench_pmu4_2 - _bench_pmu4_1; \
         }
 
 #define BENCH_APPEND \
@@ -154,7 +146,8 @@ int alloc_measurements(void)
 
     for_each_online_cpu(cpu) {
         c = per_cpu_ptr(tracker_cpu_perf, cpu);
-        c->entries = vzalloc(NBUCKETS * sizeof(struct tracker_measurement_entry));
+        c->entries = vzalloc(PER_CPU_ALLOC *
+                             sizeof(struct tracker_measurement_entry));
         if (!c->entries) {
             ret = -ENOMEM;
             goto end;
@@ -216,12 +209,12 @@ void output_measurements(void)
         goto end;
     }
 
-    tmp_measurement.entries = vzalloc(NBUCKETS *
+    tmp_measurement.entries = vzalloc(PER_CPU_ALLOC *
                                       sizeof(struct tracker_measurement_entry));
     for_each_online_cpu(cpu) {
         struct tracker_measurement_cpu_perf *_bench_c;
         _bench_c = per_cpu_ptr(tracker_cpu_perf, cpu);
-        for (i = 0; i < NBUCKETS; i++) {
+        for (i = 0; i < PER_CPU_ALLOC; i++) {
             tmp_measurement.entries[i].pmu1 += _bench_c->entries[i].pmu1;
             tmp_measurement.entries[i].pmu2 += _bench_c->entries[i].pmu2;
             tmp_measurement.entries[i].pmu3 += _bench_c->entries[i].pmu3;
@@ -231,7 +224,7 @@ void output_measurements(void)
 
     snprintf(buf, 256, "L1_miss,LLC_miss,cache_misses,instructions\n");
     vfs_write(file, buf, strlen(buf), &pos);
-    for (i = 0; i < NBUCKETS; i++) {
+    for (i = 0; i < PER_CPU_ALLOC; i++) {
         snprintf(buf, 256, "%llu,%llu,%llu,%llu\n",
                  tmp_measurement.entries[i].pmu1,
                  tmp_measurement.entries[i].pmu2,

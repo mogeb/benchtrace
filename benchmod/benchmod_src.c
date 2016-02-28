@@ -39,9 +39,6 @@ char zero_256b[256] = { 0 };
 void (*do_tp)(void);
 int print = 0;
 
-DEFINE_PER_CPU(int[NBUCKETS], histos);
-DEFINE_PER_CPU(unsigned long, averages);
-
 struct timespec do_ts_diff(struct timespec start, struct timespec end)
 {
     struct timespec temp;
@@ -124,8 +121,6 @@ void tp_1kb(void)
 int start_benchmark(struct benchmod_arg arg)
 {
     int i, ret = 0, loop = arg.loop;
-    int *h;
-    unsigned long *a;
     int cpu;
 
     printk(KERN_INFO "Start_benchmark on CPU %d, loop = %d, tp_size = %d\n",
@@ -183,17 +178,7 @@ int start_benchmark(struct benchmod_arg arg)
      * Discard old values that haven't been read.
      */
     for_each_online_cpu(cpu) {
-        a = per_cpu_ptr(&averages, cpu);
-        h = per_cpu_ptr(histos, cpu);
-        if(!a || !h) {
-            printk("A or H are null\n");
-            ret = -1;
-            goto done;
-        }
-        for(i = 0; i < NBUCKETS; i++) {
-            h[i] = 0;
-        }
-        *a = 0;
+
     }
 
     BENCH_PREAMBULE;
@@ -205,7 +190,6 @@ int start_benchmark(struct benchmod_arg arg)
     BENCH_APPEND;
     print = 1;
 
-done:
     return ret;
 }
 
@@ -237,40 +221,10 @@ long benchmod_ioctl(
 ssize_t benchmod_read(struct file *f, char *buf, size_t size, loff_t *offset)
 {
     ssize_t ret = 0;
-    int i = 0, count = 0;
-    int s, e;
-    int res_hist[NBUCKETS] = { 0 }, loop = 0;
-    unsigned long average = 0;
-    int *h, cpu = smp_processor_id();
-    unsigned long *a;
     char *start;
     start = buf;
 
     printk("BENCHMOD_READ\n");
-
-    for_each_online_cpu(cpu) {
-        a = per_cpu_ptr(&averages, cpu);
-        h = per_cpu_ptr(histos, cpu);
-        for(i = 0; i < NBUCKETS; i++) {
-            res_hist[i] += h[i];
-        }
-        average += *a;
-    }
-
-    if(print) {
-        for(i = 0; i < NBUCKETS; i++) {
-            s = i * hist_granularity_ns;
-            e = (i + 1) * hist_granularity_ns;
-            count = sprintf(start + ret, "%d,%d,%d\n", s, e, res_hist[i]);
-            ret += count;
-            loop += res_hist[i];
-        }
-        average /= loop;
-        count = sprintf(start + ret, "%ld\n", average);
-        ret += count;
-    }
-    print = 0;
-
     printk("About to output measurements\n");
     output_measurements();
 
@@ -286,18 +240,8 @@ static const struct file_operations empty_mod_operations = {
 /* Initialize the module - Register the character device */
 static int __init benchmod_init(void)
 {
-    int ret = 0, cpu;
-    int *h;
-    unsigned long *a;
+    int ret = 0;
     printk(KERN_INFO "Init benchmod\n");
-
-    for_each_online_cpu(cpu) {
-        printk("CPU %d is allocating\n", cpu);
-        h = per_cpu_ptr(histos, cpu);
-        a = per_cpu_ptr(&averages, cpu);
-        h = (int*) vmalloc(NBUCKETS * sizeof(int));
-        a = (unsigned long*) vmalloc(sizeof(unsigned long));
-    }
 
     proc_create_data(PROC_ENTRY_NAME, S_IRUGO | S_IWUGO, NULL,
             &empty_mod_operations, NULL);
