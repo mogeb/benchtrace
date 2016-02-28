@@ -3,6 +3,11 @@
 *.ko
 *.order
 Module.symvers
+
+# Python
+*.pyc
+
+# Build folder
 bin/
 
 # QtCreator files
