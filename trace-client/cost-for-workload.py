@@ -21,7 +21,7 @@ def do_work(tracer, tracer_name, args = None):
             args['tp_size'] = tp_size
             tracer.start_tracing('session-test', args)
             if tracer_name == 'perf':
-                call("perf stat -e 'empty_tp:empty_ioctl_" + tp_size + "b' /home/mogeb/git/benchtrace/all-calls/allcalls -t "
+                call("perf record -e 'empty_tp:empty_ioctl_" + tp_size + "b' /home/mogeb/git/benchtrace/all-calls/allcalls -t "
                      + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
             else:
                 call("/home/mogeb/git/benchtrace/all-calls/allcalls -t "
@@ -50,7 +50,7 @@ def compile_graphs(args):
     """
     for tracer in tracers:
         for number_of_threads in numbers_of_threads:
-            fname = tracer + '_4bytes_' + number_of_threads + 'process.hist'
+            fname = tracer + '_128bytes_' + number_of_threads + 'process.hist'
             if not os.path.isfile(fname):
                 continue
             with open(fname, 'rb') as file:
@@ -61,8 +61,9 @@ def compile_graphs(args):
     for tracer in tracers:
         if not len(values[tracer]) == 0:
             plt.plot(numbers_of_threads, values[tracer], 'o-', label=tracer)
-    plt.axis()
-    plt.ylabel('Total time in ns')
+    plt.title('Time taken to finish workload according to number of threads')
+    plt.xlabel('Number of threads')
+    plt.ylabel('Time in ns')
     plt.legend()
     plt.show()
 

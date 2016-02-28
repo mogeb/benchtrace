@@ -20,24 +20,22 @@ def start_tracing(tracename, args, tracepoints = None):
         pass
 
     buf_size = int(args['buf_size_kb'])
-    if buf_size > 1024:
+    if buf_size >= 1024:
         buf_size = int(buf_size / 1024);
         buf_size_str = str(buf_size) + 'M'
     else:
         buf_size_str = str(buf_size) + 'k'
 
-    tp_size = str(args['tp_size'])
+    tp_size = args['tp_size']
 
-    print('lttng create ' + tracename + ' -o /home/mogeb/git/benchtrace/trace-client')
-    call('lttng create ' + tracename + ' -o /home/mogeb/git/benchtrace/trace-client', shell=True)
+    cmd = 'lttng create ' + tracename + ' -o /home/mogeb/git/benchtrace/trace-client'
+    print(cmd)
+    call(cmd, shell=True)
+
     print('lttng enable-channel chan0 --subbuf-size ' + buf_size_str + ' -k')
     call('lttng enable-channel chan0 --subbuf-size ' + buf_size_str + ' -k', shell=True)
     print('lttng enable-event -k -c chan0 empty_ioctl_' + tp_size + 'b')
     call('lttng enable-event -k -c chan0 empty_ioctl_' + tp_size + 'b', shell=True)
-
-    print('lttng enable-event --syscall -a -k -c chan0')
-    call('lttng enable-event --syscall -a -k -c chan0', shell=True)
-
     print('lttng start')
     call('lttng start', shell=True)
 

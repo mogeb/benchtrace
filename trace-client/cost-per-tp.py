@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pylab
-import matplotlib.ticker as ticker
-import os
+import matplotlib
+from pylab import *
 from matplotlib.font_manager import FontProperties
 from collections import defaultdict
 from statistics import *
@@ -17,11 +17,16 @@ def do_work(tracer, tracer_name, args = None):
     nprocess = args['nprocess']
 
     for tp_size in tp_sizes:
+        tp_size_str = int(tp_size)
+        if tp_size_str >= 1024:
+            tp_size_str = int(tp_size_str / 1024)
+            tp_size_str = str(tp_size_str) + 'k'
+        tp_size_str = str(tp_size_str)
         for i in nprocess:
-            args['tp_size'] = tp_size
+            args['tp_size'] = tp_size_str
             tracer.start_tracing('session-test', args)
             if tracer_name == 'perf':
-                call("perf stat -e 'empty_tp:empty_ioctl_" + tp_size + "b' /home/mogeb/git/benchtrace/all-calls/allcalls -t "
+                call("perf record -e 'empty_tp:empty_ioctl_" + tp_size_str + "b' /home/mogeb/git/benchtrace/all-calls/allcalls -t "
                      + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
             else:
                 call("/home/mogeb/git/benchtrace/all-calls/allcalls -t "
@@ -33,38 +38,8 @@ def cleanup(args = None):
 
 
 def compile_results(args):
-    compile_bars(args)
-    # compile_graphs(args)
     compile_percentiles(args)
-    return
-
-
-def compile_graphs():
-    tp_sizes = ['4', '64', '128', '192', '256']
-    tracers = ['none', 'lttng', 'ftrace', 'perf']
-    values = defaultdict(list)
-
-    """
-    Fix thread size = 1
-    """
-    for tracer in tracers:
-        for tp_size in tp_sizes:
-            fname = tracer + '_' + tp_size + 'bytes_1process.hist'
-            if not os.path.isfile(fname):
-                continue
-            with open(fname, 'rb') as file:
-                for line in file:
-                    pass
-                values[tracer].append(line)
-    print(values)
-    for tracer in tracers:
-        if not len(values[tracer]) == 0:
-            plt.plot(tp_sizes, values[tracer], 'o-', label=tracer)
-    plt.axis()
-    plt.ylabel('some numbers')
-    plt.legend()
-    plt.show()
-
+    compile_bars(args)
     return
 
 
@@ -73,12 +48,13 @@ Will analyze the .hist files.
 """
 def compile_percentiles(args):
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
-    byte_sizes = ['4', '32', '64', '128', '192', '256']
+    byte_sizes = ['4', '32', '64', '128', '192', '256', '512', '768', '1024']
     nprocesses = ['1']
     tracers = ['none', 'lttng', 'ftrace', 'perf']
     perc = 0.90
 
     for nprocess in nprocesses:
+        fig = plt.figure(figsize=(14, 7))
         for tracer in tracers:
             percentiles = []
             for bytes in byte_sizes:
@@ -86,19 +62,21 @@ def compile_percentiles(args):
                 values = np.genfromtxt(fname, delimiter=',', skip_header=0,
                               names=['min', 'max', 'num'], dtype=None, skip_footer=1)
                 percentiles.append(getPercentile(values['max'], values['num'], perc))
-            plt.plot(byte_sizes, percentiles, 'o-', label=tracer)
+            ax = fig.add_subplot(1, 1, 1)
+            ax.plot(byte_sizes, percentiles, 'o-', label=tracer)
+            # plt.plot(byte_sizes, percentiles, 'o-', label=tracer)
 
-        plt.axis([0, 310, 50, 210])
-        plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint')
+        plt.axis([0, 1050, 0, 700])
+        plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to payload size')
         plt.xlabel('Payload size in bytes')
         plt.ylabel('Time in ns')
         fontP = FontProperties()
         fontP.set_size('small')
 
-        imgname = 'results/' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
-        # plt.savefig(imgname + '.png')
-        # plt.savefig(imgname + '.pdf')
-        plt.show()
+        imgname = 'pertp/90th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
+        plt.legend()
+        # plt.show()
+        plt.savefig(imgname + '.png', dpi=100)
 
     return values['max'], values['num'], percentiles
 
@@ -110,7 +88,8 @@ def compile_bars(args):
     lttng_percentiles = []
     ftrace_percentiles = []
     perf_percentiles = []
-    byte_sizes = ['4', '64', '128', '192', '256']
+    byte_sizes = ['4', '32', '64', '128', '192', '256', '512', '768', '1024']
+    # byte_sizes = ['1024']
     tracers = ['none', 'lttng', 'ftrace', 'perf']
     nprocesses = ['1']
 
@@ -121,9 +100,10 @@ def compile_bars(args):
             lttng_percentiles.append(getPercentile(lttng_values['max'], lttng_values['num'], 0.9))
 
             N = len(lttng_values['num'])
-            ind = np.arange(N)  # the x locations for the groups
+            ind = np.arange(N)
+            ticks = np.arange(0, N, 5)  # the x locations for the groups
 
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize=(14, 7))
 
             none_values = np.genfromtxt(res_dir + 'none_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
                           names=['min', 'max', 'num'], dtype=None, skip_footer=1)
@@ -145,22 +125,26 @@ def compile_bars(args):
 
             # add some text for labels, title and axes ticks
             ax.set_ylabel('Time in ns')
-            ax.set_title('Time taken to do N calls')
-            ax.set_xticks(ind + width)
-            ax.set_xticklabels(lttng_values['max'])
+            ax.set_title('Distribution of the latency per tracepoint for a payload of ' + bytes + ' bytes')
+            # ax.set_xticks(ind + width)
+            ax.set_xticks(ticks)
+            # ax.set_xticklabels(lttng_values['max'])
+            ax.set_xticklabels(ticks * 5)
 
             ax.legend((rect_none[0], rect_lttng[0], rect_ftrace[0], rect_perf[0]), ('None', 'LTTng', 'Ftrace', 'Perf'))
 
             fontP = FontProperties()
             fontP.set_size('small')
-            plt.axis([10, 40, 0, int(args['loop'])])
+            plt.xlabel('Latency in ns')
+            plt.ylabel('Frequency')
+            rstyle(ax)
+            # plt.xticks(range(80, 426, 5), fontsize=14)
+            # plt.axis([16, 85, 0, int(args['loop'])])
 
-            imgname = 'results/hist_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
-            fig = plt.gcf()
-            fig.set_size_inches(12, 7)
-            # fig.savefig('test2png.png', dpi=100)
-            # plt.savefig(imgname + '.png')
-            # plt.savefig(imgname + '.pdf')
+            plt.tight_layout()
+            # plt.show()
+            imgname = 'pertp/hist_' + nprocess + 'proc_' + bytes + 'b'
+            plt.savefig(imgname + '.png', dpi=100)
 
     return
 
@@ -308,6 +292,107 @@ def getPercentile(values, density, n):
     return density[len(density)]
 
 
+def rstyle(ax):
+    """Styles an axes to appear like ggplot2
+    Must be called after all plot and axis manipulation operations have been carried out (needs to know final tick spacing)
+    """
+    #set the style of the major and minor grid lines, filled blocks
+    ax.grid(True, 'major', color='w', linestyle='-', linewidth=1.4)
+    ax.grid(True, 'minor', color='0.92', linestyle='-', linewidth=0.7)
+    ax.patch.set_facecolor('0.85')
+    ax.set_axisbelow(True)
 
+    #set minor tick spacing to 1/2 of the major ticks
+    ax.xaxis.set_minor_locator(MultipleLocator( (plt.xticks()[0][1]-plt.xticks()[0][0]) / 2.0 ))
+    ax.yaxis.set_minor_locator(MultipleLocator( (plt.yticks()[0][1]-plt.yticks()[0][0]) / 2.0 ))
+
+    #remove axis border
+    for child in ax.get_children():
+        if isinstance(child, matplotlib.spines.Spine):
+            child.set_alpha(0)
+
+    #restyle the tick lines
+    for line in ax.get_xticklines() + ax.get_yticklines():
+        line.set_markersize(5)
+        line.set_color("gray")
+        line.set_markeredgewidth(1.4)
+
+    #remove the minor tick lines
+    for line in ax.xaxis.get_ticklines(minor=True) + ax.yaxis.get_ticklines(minor=True):
+        line.set_markersize(0)
+
+    #only show bottom left ticks, pointing out of axis
+    rcParams['xtick.direction'] = 'out'
+    rcParams['ytick.direction'] = 'out'
+    ax.xaxis.set_ticks_position('bottom')
+    ax.yaxis.set_ticks_position('left')
+
+
+    if ax.legend_ != None:
+        lg = ax.legend_
+        lg.get_frame().set_linewidth(0)
+        lg.get_frame().set_alpha(0.5)
+
+
+def rhist(ax, data, **keywords):
+    """Creates a histogram with default style parameters to look like ggplot2
+    Is equivalent to calling ax.hist and accepts the same keyword parameters.
+    If style parameters are explicitly defined, they will not be overwritten
+    """
+
+    defaults = {
+                'facecolor' : '0.3',
+                'edgecolor' : '0.28',
+                'linewidth' : '1',
+                'bins' : 100
+                }
+
+    for k, v in defaults.items():
+        if k not in keywords: keywords[k] = v
+
+    return ax.hist(data, **keywords)
+
+
+def rbox(ax, data, **keywords):
+    """Creates a ggplot2 style boxplot, is eqivalent to calling ax.boxplot with the following additions:
+
+    Keyword arguments:
+    colors -- array-like collection of colours for box fills
+    names -- array-like collection of box names which are passed on as tick labels
+
+    """
+
+    hasColors = 'colors' in keywords
+    if hasColors:
+        colors = keywords['colors']
+        keywords.pop('colors')
+
+    if 'names' in keywords:
+        ax.tickNames = plt.setp(ax, xticklabels=keywords['names'] )
+        keywords.pop('names')
+
+    bp = ax.boxplot(data, **keywords)
+    pylab.setp(bp['boxes'], color='black')
+    pylab.setp(bp['whiskers'], color='black', linestyle = 'solid')
+    pylab.setp(bp['fliers'], color='black', alpha = 0.9, marker= 'o', markersize = 3)
+    pylab.setp(bp['medians'], color='black')
+
+    numBoxes = len(data)
+    for i in range(numBoxes):
+        box = bp['boxes'][i]
+        boxX = []
+        boxY = []
+        for j in range(5):
+          boxX.append(box.get_xdata()[j])
+          boxY.append(box.get_ydata()[j])
+        boxCoords = zip(boxX,boxY)
+
+        if hasColors:
+            boxPolygon = Polygon(boxCoords, facecolor = colors[i % len(colors)])
+        else:
+            boxPolygon = Polygon(boxCoords, facecolor = '0.95')
+
+        ax.add_patch(boxPolygon)
+    return bp
 
 

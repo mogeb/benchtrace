@@ -43,7 +43,7 @@ def main(args):
             buf_size_kb = arg
 
     if int(buf_size_kb) > 262144:
-        print("OVERRIDING BUFFER SIZE TO 262155")
+        print("OVERRIDING BUFFER SIZE TO 262144")
         buf_size_kb = str(262144)
 
 
