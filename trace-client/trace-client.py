@@ -8,7 +8,6 @@ def error_opt(msg):
 
 
 def main(args):
-    call(["rm", "-rf", "/home/mogeb/git/benchtrace/trace-client/kernel"])
     longopts = ["tracer=", "workload=", "size=", "process=", "loop="]
     try:
         optlist, args = getopt.getopt(args[1:], "t:w:s:p:n:zb:", longopts)
