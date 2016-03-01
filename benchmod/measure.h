@@ -28,7 +28,7 @@
 
 #define irq_stats(x)            (&per_cpu(irq_stat, x))
 
-#define PER_CPU_ALLOC 10000
+#define PER_CPU_ALLOC 100000
 struct tracker_measurement_entry {
     u64 pmu1;
     u64 pmu2;
@@ -85,10 +85,10 @@ static struct tracker_measurement_cpu_perf __percpu *tracker_cpu_perf;
         _bench_pmu4_2 = local64_read(&_bench_c->event4->count); \
         _bench_diff = do_ts_diff(_bench_ts1, _bench_ts2); \
         _bench_c->entries[_bench_c->pos].latency = _bench_diff.tv_sec * BILLION + (unsigned long)_bench_diff.tv_nsec; \
-        _bench_c->entries[_bench_c->pos].pmu1 += _bench_pmu1_2 - _bench_pmu1_1; \
-        _bench_c->entries[_bench_c->pos].pmu2 += _bench_pmu2_2 - _bench_pmu2_1; \
-        _bench_c->entries[_bench_c->pos].pmu3 += _bench_pmu3_2 - _bench_pmu3_1; \
-        _bench_c->entries[_bench_c->pos].pmu4 += _bench_pmu4_2 - _bench_pmu4_1; \
+        _bench_c->entries[_bench_c->pos].pmu1 = _bench_pmu1_2 - _bench_pmu1_1; \
+        _bench_c->entries[_bench_c->pos].pmu2 = _bench_pmu2_2 - _bench_pmu2_1; \
+        _bench_c->entries[_bench_c->pos].pmu3 = _bench_pmu3_2 - _bench_pmu3_1; \
+        _bench_c->entries[_bench_c->pos].pmu4 = _bench_pmu4_2 - _bench_pmu4_1; \
         _bench_c->pos++; \
         } \
         }
@@ -121,34 +121,86 @@ int alloc_measurements(void)
                PERF_COUNT_HW_CACHE_OP_READ << 8 | \
                PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
 
-    /* attr2 = LLC-load-misses */
+//    /* attr2 = LLC-load-misses */
+//    attr2.size = sizeof(struct perf_event_attr);
+//    attr2.pinned = 1;
+//    attr2.disabled = 0;
+//    attr2.type = PERF_TYPE_HW_CACHE;
+//    attr2.config = PERF_COUNT_HW_CACHE_LL | \
+//               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
+//               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+
+//    /* attr3 = cache misses */
+//    attr3.size = sizeof(struct perf_event_attr);
+//    attr3.pinned = 1;
+//    attr3.disabled = 0;
+//    attr3.type = PERF_TYPE_HARDWARE;
+//    attr3.config = PERF_COUNT_HW_CACHE_MISSES;
+
+//    /* attr4 = dTLB-load-misses */
+//    attr4.size = sizeof(struct perf_event_attr);
+//    attr4.pinned = 1;
+//    attr4.disabled = 0;
+//    attr4.type = PERF_TYPE_HW_CACHE;
+//    attr4.config = PERF_COUNT_HW_CACHE_DTLB | \
+//               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
+//               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+
     attr2.size = sizeof(struct perf_event_attr);
     attr2.pinned = 1;
     attr2.disabled = 0;
-    attr2.type = PERF_TYPE_HW_CACHE;
-    attr2.config = PERF_COUNT_HW_CACHE_LL | \
-               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
-               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+    attr2.type = PERF_TYPE_HARDWARE;
+    attr2.config = PERF_COUNT_HW_BRANCH_MISSES;
 
-    /* attr3 = cache misses */
     attr3.size = sizeof(struct perf_event_attr);
     attr3.pinned = 1;
     attr3.disabled = 0;
     attr3.type = PERF_TYPE_HARDWARE;
-    attr3.config = PERF_COUNT_HW_CACHE_MISSES;
+    attr3.config = PERF_COUNT_HW_BRANCH_INSTRUCTIONS;
 
-    /* attr4 = instructions */
+//    attr2.size = sizeof(struct perf_event_attr);
+//    attr2.pinned = 1;
+//    attr2.disabled = 0;
+//    attr2.type = PERF_TYPE_HARDWARE;
+//    attr2.config = PERF_COUNT_HW_BUS_CYCLES;
+
     attr4.size = sizeof(struct perf_event_attr);
     attr4.pinned = 1;
     attr4.disabled = 0;
     attr4.type = PERF_TYPE_HARDWARE;
-    attr4.config = PERF_COUNT_HW_INSTRUCTIONS;
+    attr4.config = PERF_COUNT_HW_CPU_CYCLES;
+
+//    attr4.size = sizeof(struct perf_event_attr);
+//    attr4.pinned = 1;
+//    attr4.disabled = 0;
+//    attr4.type = PERF_TYPE_HARDWARE;
+//    attr4.config = PERF_COUNT_HW_INSTRUCTIONS;
+
+//    attr1.size = sizeof(struct perf_event_attr);
+//    attr1.pinned = 1;
+//    attr1.disabled = 0;
+//    attr1.type = PERF_TYPE_SOFTWARE;
+//    attr1.config = PERF_COUNT_SW_ALIGNMENT_FAULTS;
+
+//    attr2.size = sizeof(struct perf_event_attr);
+//    attr2.pinned = 1;
+//    attr2.disabled = 0;
+//    attr2.type = PERF_TYPE_SOFTWARE;
+//    attr2.config = PERF_COUNT_SW_CPU_CLOCK;
+
+//    attr3.size = sizeof(struct perf_event_attr);
+//    attr3.pinned = 1;
+//    attr3.disabled = 0;
+//    attr3.type = PERF_TYPE_SOFTWARE;
+//    attr3.config = PERF_COUNT_SW_PAGE_FAULTS_MIN;
+
 
     for_each_online_cpu(cpu) {
         c = per_cpu_ptr(tracker_cpu_perf, cpu);
         c->entries = vzalloc(PER_CPU_ALLOC *
                              sizeof(struct tracker_measurement_entry));
         if (!c->entries) {
+            printk("Couldn't allocate memory\n");
             ret = -ENOMEM;
             goto end;
         }
@@ -198,7 +250,6 @@ void output_measurements(void)
     struct file *file;
     mm_segment_t old_fs;
     char buf[256];
-    struct tracker_measurement_cpu_perf tmp_measurement;
 
     old_fs = get_fs();
     set_fs(get_ds());
@@ -209,29 +260,23 @@ void output_measurements(void)
         goto end;
     }
 
-    tmp_measurement.entries = vzalloc(PER_CPU_ALLOC *
-                                      sizeof(struct tracker_measurement_entry));
+    snprintf(buf, 256, "latency,L1_misses,Branch_misses,Branch_instructions,CPU_cycles\n");
+    vfs_write(file, buf, strlen(buf), &pos);
     for_each_online_cpu(cpu) {
         struct tracker_measurement_cpu_perf *_bench_c;
         _bench_c = per_cpu_ptr(tracker_cpu_perf, cpu);
-        for (i = 0; i < PER_CPU_ALLOC; i++) {
-            tmp_measurement.entries[i].pmu1 += _bench_c->entries[i].pmu1;
-            tmp_measurement.entries[i].pmu2 += _bench_c->entries[i].pmu2;
-            tmp_measurement.entries[i].pmu3 += _bench_c->entries[i].pmu3;
-            tmp_measurement.entries[i].pmu4 += _bench_c->entries[i].pmu4;
+        for (i = 0; i < _bench_c->pos; i++) {
+            snprintf(buf, 256, "%llu,%llu,%llu,%llu,%llu\n",
+            _bench_c->entries[i].latency,
+            _bench_c->entries[i].pmu1,
+            _bench_c->entries[i].pmu2,
+            _bench_c->entries[i].pmu3,
+            _bench_c->entries[i].pmu4);
+            vfs_write(file, buf, strlen(buf), &pos);
         }
+        _bench_c->pos = 0;
     }
 
-    snprintf(buf, 256, "L1_miss,LLC_miss,cache_misses,instructions\n");
-    vfs_write(file, buf, strlen(buf), &pos);
-    for (i = 0; i < PER_CPU_ALLOC; i++) {
-        snprintf(buf, 256, "%llu,%llu,%llu,%llu\n",
-                 tmp_measurement.entries[i].pmu1,
-                 tmp_measurement.entries[i].pmu2,
-                 tmp_measurement.entries[i].pmu3,
-                 tmp_measurement.entries[i].pmu4);
-        vfs_write(file, buf, strlen(buf), &pos);
-    }
     filp_close(file, NULL);
 
 end:

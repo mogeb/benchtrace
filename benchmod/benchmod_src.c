@@ -182,11 +182,11 @@ int start_benchmark(struct benchmod_arg arg)
     }
 
     BENCH_PREAMBULE;
-    BENCH_GET_TS1;
     for(i = 0; i < loop; i++) {
+        BENCH_GET_TS1;
         do_tp();
+        BENCH_GET_TS2;
     }
-    BENCH_GET_TS2;
     BENCH_APPEND;
     print = 1;
 
@@ -209,6 +209,7 @@ long benchmod_ioctl(
     switch(ioctl_num) {
     case IOCTL_BENCHMARK:
         start_benchmark(*benchmod_arg);
+        output_measurements();
         break;
 
     default:
