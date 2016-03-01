@@ -26,3 +26,6 @@ bin/
 *.hist
 *.out
 *.summary
+
+# Perf
+perf.data*
