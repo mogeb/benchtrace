@@ -53,7 +53,6 @@ static void __exit kp_bench_exit(void)
 
     printk(KERN_INFO "Kprobe bench exit\n");
     for(i = 0; i < KP_ARRAY_LEN; i++) {
-        kp_array[i].pre_handler = pre_handler;
         unregister_kprobe(&kp_array[i]);
     }
 }
