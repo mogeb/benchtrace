@@ -209,7 +209,6 @@ long benchmod_ioctl(
     switch(ioctl_num) {
     case IOCTL_BENCHMARK:
         start_benchmark(*benchmod_arg);
-        output_measurements();
         break;
 
     default:
