@@ -1,9 +1,12 @@
-CFLAGS=-g -O0
+LIBS += -ldl -llttng-ust -lpthread -lpopt
+CFLAGS = -g
+BIN = ustbench
+BINDIR = bin
 
-all: ustbench
+all: $(BIN)
 
-ustbench: ustbench.o tp.o
-	gcc $(CFLAGS) -o ustbench ustbench.o tp.o -ldl -llttng-ust -lpthread -lpopt
+$(BIN): ustbench.o tp.o | $(BINDIR)
+	gcc $(CFLAGS) -o $(BINDIR)/$(BIN) ustbench.o tp.o $(LIBS)
 
 ustbench.o: ustbench.c
 	gcc $(CFLAGS) -I. -I/usr/include -c -o ustbench.o ustbench.c
@@ -14,6 +17,9 @@ ustbench.i: ustbench.c
 tp.o:
 	gcc $(CFLAGS) -I. -c -o tp.o tp.c
 
+$(BINDIR):
+	mkdir -p $(BINDIR)
+
 clean:
 	rm *.o
-	rm ustbench
+	rm -rf $(BINDIR)
