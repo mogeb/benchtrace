@@ -5,13 +5,13 @@ CFLAGS = -g
 BIN = allcalls
 BUILDDIR = bin
 
-all: dir $(BUILDDIR)/$(BIN)
+all: $(BIN)
 
-dir:
-	mkdir -p $(BUILDDIR)
-
-$(BUILDDIR)/$(BIN):
+$(BIN): | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(SOURCE) -o $(BUILDDIR)/$(BIN) $(LIBS)
+
+$(BUILDDIR):
+	mkdir -p $(BUILDDIR)
 
 clean:
 	rm -rf $(BUILDDIR)
