@@ -78,7 +78,7 @@ struct ioctl_args {
 int copy(const char *from, const char *to)
 {
     int fd_to, fd_from;
-    char buf[4096];
+    char buf[4194304];
     ssize_t nread;
     int saved_errno;
 
@@ -203,6 +203,17 @@ static void dump(char *tracer, struct timespec timespan)
 
 //    fclose(file);
 
+//    file = fopen(outfile, "w+");
+    fd = open(BENCHMOD_NAME, O_RDONLY);
+
+    /* Dump the content of /proc/benchmod */
+    while(read(fd, huge, 1048576) > 0) {
+//        fprintf(file, "%s", huge);
+    }
+
+    close(fd);
+//    fclose(file);
+
     /* Write raw values for histogram */
     strcpy(outfile, tracer);
     sprintf(tmp_str, "_%dbytes", popt_args.tp_size);
@@ -210,17 +221,12 @@ static void dump(char *tracer, struct timespec timespan)
     sprintf(tmp_str, "_%dprocess", popt_args.nthreads);
     strcat(outfile, tmp_str);
     strcat(outfile, ".hist");
-    copy("/tmp/out.csv", outfile);
-//    file = fopen(outfile, "w+");
-//    fd = open(BENCHMOD_NAME, O_RDONLY);
+//    copy("/tmp/out.csv", outfile);
+//    char cmd[1024];
+//    strcat(cmd, "cp /tmp/out.csv ");
+//    strcat(cmd, outfile);
+//    system(cmd);
 
-//    /* Dump the content of /proc/benchmod */
-//    while(read(fd, huge, 1048576) > 0) {
-//        fprintf(file, "%s", huge);
-//    }
-
-//    close(fd);
-//    fclose(file);
 }
 
 void *do_work(void *args)
