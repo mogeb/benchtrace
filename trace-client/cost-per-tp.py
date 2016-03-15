@@ -1,5 +1,6 @@
 from _snack import label
 
+import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pylab
@@ -12,30 +13,38 @@ from subprocess import call
 from mpl_toolkits.mplot3d import Axes3D
 
 
+tracers_colors = { 'none': 'r', 'lttng': 'b', 'ftrace': 'y', 'perf': 'm',
+                   'kprobe': 'lightskyblue', 'jprobe': 'teal' }
+
 def init(args = None):
     return
 
 def do_work(tracer, tracer_name, args = None):
     loops = str(args['loop'])
     tp_sizes = args['tp_sizes']
-    nprocess = args['nprocess']
+    nprocesses = args['nprocesses']
+    buf_sizes_kb = args['buf_sizes_kb']
 
-    for tp_size in tp_sizes:
-        tp_size_str = int(tp_size)
-        if tp_size_str >= 1024:
-            tp_size_str = int(tp_size_str / 1024)
-            tp_size_str = str(tp_size_str) + 'k'
-        tp_size_str = str(tp_size_str)
-        for i in nprocess:
-            args['tp_size'] = tp_size_str
-            tracer.start_tracing('session-test', args)
-            if tracer_name == 'perf':
-                call("perf record -e 'empty_tp:empty_ioctl_" + tp_size_str + "b' /home/mogeb/git/benchtrace/all-calls/bin/allcalls -t "
-                     + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
-            else:
-                call("/home/mogeb/git/benchtrace/all-calls/bin/allcalls -t "
-                     + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
-            tracer.stop_tracing('session-test')
+    for buf_size_kb in buf_sizes_kb:
+        args['buf_size_kb'] = buf_size_kb
+        for tp_size in tp_sizes:
+            tp_size_str = int(tp_size)
+            if tp_size_str >= 1024:
+                tp_size_str = int(tp_size_str / 1024)
+                tp_size_str = str(tp_size_str) + 'k'
+            tp_size_str = str(tp_size_str)
+            for i in nprocesses:
+                args['tp_size'] = tp_size_str
+                tracer.start_tracing('session-test', args)
+                if tracer_name == 'perf':
+                    call("perf record -e 'empty_tp:empty_ioctl_" + tp_size_str + "b' /home/mogeb/git/benchtrace/all-calls/bin/allcalls -t "
+                         + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
+                else:
+                    call("/home/mogeb/git/benchtrace/all-calls/bin/allcalls -t "
+                         + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
+                tracer.stop_tracing('session-test')
+                shutil.copyfile('/tmp/out.csv', tracer_name + '_' + tp_size + 'bytes_' + buf_size_kb
+                                + 'kbsubbuf_' + i + '_process.hist')
 
 def cleanup(args = None):
     return
@@ -43,9 +52,49 @@ def cleanup(args = None):
 
 def compile_results(args):
     # compile_percentiles(args)
+    # compile_percentiles_nthreads(args)
     # compile_histograms(args)
-    compile_scatter_plot_ICL(args)
+    # compile_scatter_plot(args)
+    # compile_scatter_plot_CPI(args)
+    compile_lttng_subbuf(args)
     return
+
+
+def compile_percentiles_nthreads(args):
+    res_dir = '/home/mogeb/git/benchtrace/trace-client/'
+    nprocesses = args['nprocesses']
+    tracers = args['tracers']
+    buf_sizes_kb = args['buf_sizes_kb']
+    tp_size = 4
+    percs = [0.5, 0.75, 0.9, 0.95]
+
+    for buf_size_kb in buf_sizes_kb:
+        for perc in percs:
+            percentiles = defaultdict(list)
+            for tracer in tracers:
+                for nprocess in nprocesses:
+                    # fname = res_dir + tracer + '_' + str(tp_size) + 'bytes_' + nprocess + 'process.hist'
+                    fname = tracer + '_' + str(tp_size) + 'bytes_' + buf_size_kb\
+                            + 'kbsubbuf_' + nprocess + '_process.hist'
+                    with open(fname, 'r') as f:
+                        legend = f.readline()
+                    legend = legend.split(',')
+                    values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None, invalid_raise=False)
+                    percentiles[tracer].append(np.percentile(values['latency'], perc))
+                    # percentiles[tracer].append(np.average(values['latency']))
+                plt.plot(nprocesses, percentiles[tracer], 'o-', label=tracer)
+
+            plt.title(str(int(perc * 100)) + 'th percentiles of tracepoint latency according to the number of threads')
+            plt.xlabel('Number of threads')
+            plt.ylabel('Latency in ns')
+            fontP = FontProperties()
+            fontP.set_size('small')
+
+            imgname = 'pertp/' + str(int(perc * 100)) + 'th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
+            plt.axis([0, 9, 0, 900])
+            plt.legend(prop=fontP, loc='upper left')
+            plt.show()
+            # plt.savefig(imgname + '.png', dpi=100)
 
 
 """
@@ -53,113 +102,43 @@ Will analyze the .hist files.
 """
 def compile_percentiles(args):
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
-    byte_sizes = ['4', '32', '64', '128', '192', '256', '512', '768', '1024']
-    nprocesses = ['1']
-    tracers = ['none', 'lttng', 'ftrace', 'perf']
+    tp_sizes = args['tp_sizes']
+    nprocesses = args['nprocesses']
+    tracers = args['tracers']
+    buf_sizes_kb = args['buf_sizes_kb']
     perc = 0.90
 
-    for nprocess in nprocesses:
-        fig = plt.figure(figsize=(14, 7))
-        for tracer in tracers:
-            percentiles = []
-            for bytes in byte_sizes:
-                fname = res_dir + tracer + '_' + bytes + 'bytes_' + nprocess + 'process.hist'
-                values = np.genfromtxt(fname, delimiter=',', skip_header=0,
-                              names=['min', 'max', 'num'], dtype=None, skip_footer=1)
-                percentiles.append(getPercentile(values['max'], values['num'], perc))
-            ax = fig.add_subplot(1, 1, 1)
-            ax.plot(byte_sizes, percentiles, 'o-', label=tracer)
-            # plt.plot(byte_sizes, percentiles, 'o-', label=tracer)
+    for buf_size_kb in buf_sizes_kb:
+        for nprocess in nprocesses:
+            for tracer in tracers:
+                percentiles = []
+                for tp_size in tp_sizes:
+                    # fname = res_dir + tracer + '_' + str(tp_size) + 'bytes_' + nprocess + 'process.hist'
+                    fname = tracer + '_' + str(tp_size) + 'bytes_' + buf_size_kb\
+                            + 'kbsubbuf_' + nprocess + '_process.hist'
+                    with open(fname, 'r') as f:
+                        legend = f.readline()
+                    legend = legend.split(',')
+                    values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None, invalid_raise=False)
+                    percentiles.append(np.percentile(values['latency'], perc))
+                plt.plot(tp_sizes, percentiles, 'o-', label=tracer, color=tracers_colors[tracer])
 
-        plt.axis([0, 1050, 0, 700])
-        plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to payload size')
-        plt.xlabel('Payload size in bytes')
-        plt.ylabel('Time in ns')
-        fontP = FontProperties()
-        fontP.set_size('small')
-
-        imgname = 'pertp/90th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
-        plt.legend()
-        # plt.show()
-        plt.savefig(imgname + '.png', dpi=100)
-
-    return values['max'], values['num'], percentiles
-
-
-def compile_bars(args):
-    res_dir = '/home/mogeb/git/benchtrace/trace-client/'
-    width = 0.2       # the width of the bars
-
-    none_percentiles = []
-    lttng_percentiles = []
-    ftrace_percentiles = []
-    perf_percentiles = []
-    byte_sizes = ['4', '32', '64', '128', '192', '256', '512', '768', '1024']
-    # byte_sizes = ['1024']
-    tracers = ['none', 'lttng', 'ftrace', 'perf']
-    nprocesses = ['1']
-
-    for nprocess in nprocesses:
-        for bytes in byte_sizes:
-            lttng_values = np.genfromtxt(res_dir + 'lttng_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
-                          names=['min', 'max', 'num'], dtype=None, skip_footer=1)
-            lttng_percentiles.append(getPercentile(lttng_values['max'], lttng_values['num'], 0.9))
-
-            N = len(lttng_values['num'])
-            ind = np.arange(N)
-            ticks = np.arange(0, N, 5)  # the x locations for the groups
-
-            fig, ax = plt.subplots(figsize=(14, 7))
-
-            none_values = np.genfromtxt(res_dir + 'none_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
-                          names=['min', 'max', 'num'], dtype=None, skip_footer=1)
-            none_percentiles.append(getPercentile(none_values['max'], none_values['num'], 0.9))
-
-            ftrace_values = np.genfromtxt(res_dir + 'ftrace_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
-                          names=['min', 'max', 'num'], dtype=None, skip_footer=1)
-            ftrace_percentiles.append(getPercentile(ftrace_values['max'], ftrace_values['num'], 0.9))
-
-            perf_values = np.genfromtxt(res_dir + 'perf_' + bytes + 'bytes_1process.hist', delimiter=',', skip_header=0,
-                          names=['min', 'max', 'num'], dtype=None, skip_footer=1)
-            perf_percentiles.append(getPercentile(perf_values['max'], perf_values['num'], 0.9))
-            # rect_none = ax.bar(ind, none_values['totaltime'], width, color='b')
-
-            rect_none = ax.bar(ind, none_values['num'], width, color='r')
-            rect_lttng = ax.bar(ind + width, lttng_values['num'], width, color='b')
-            rect_ftrace = ax.bar(ind + 2 * width, ftrace_values['num'], width, color='y')
-            rect_perf = ax.bar(ind + 3 * width, perf_values['num'], width, color='m')
-
-            # add some text for labels, title and axes ticks
-            ax.set_ylabel('Time in ns')
-            ax.set_title('Distribution of the latency per tracepoint for a payload of ' + bytes + ' bytes')
-            # ax.set_xticks(ind + width)
-            ax.set_xticks(ticks)
-            # ax.set_xticklabels(lttng_values['max'])
-            ax.set_xticklabels(ticks * 5)
-
-            ax.legend((rect_none[0], rect_lttng[0], rect_ftrace[0], rect_perf[0]), ('None', 'LTTng', 'Ftrace', 'Perf'))
-
+            plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to payload size')
+            plt.xlabel('Payload size in bytes')
+            plt.ylabel('Time in ns')
             fontP = FontProperties()
             fontP.set_size('small')
-            plt.xlabel('Latency in ns')
-            plt.ylabel('Frequency')
-            rstyle(ax)
-            # plt.xticks(range(80, 426, 5), fontsize=14)
-            # plt.axis([16, 85, 0, int(args['loop'])])
 
-            plt.tight_layout()
-            imgname = 'pertp/hist_' + nprocess + 'proc_' + bytes + 'b'
-            plt.savefig(imgname + '.png', dpi=100)
-
-    return
+            # imgname = 'pertp/90th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
+            plt.legend()
+            plt.show()
+            # plt.savefig(imgname + '.png', dpi=100)
 
 
 def compile_scatter_plot_ICL(args):
     bytes = args['tp_sizes'][0]
-    tracers = ['none', 'lttng', 'ftrace', 'perf']
-    # tracers = ['lttng']
+    tracers = args['tracers']
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
-    colors = { 'none' : 'r', 'lttng': 'b', 'ftrace': 'y', 'perf': 'm' }
     values = defaultdict(list)
     cpi = defaultdict(list)
 
@@ -172,27 +151,26 @@ def compile_scatter_plot_ICL(args):
         fname = res_dir + tracer + '_' + str(bytes) + 'bytes_1process.hist'
         values[tracer] = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=int)
 
-    # for tracer in tracers:
-    #     for i in range(0, len(values[tracer])):
-    #         cpi[tracer].append(values[tracer]['CPU_cycles'][i] / values[tracer]['Instructions'][i])
+    for tracer in tracers:
+        for i in range(0, len(values[tracer])):
+            cpi[tracer].append(values[tracer]['CPU_cycles'][i] / values[tracer]['Instructions'][i])
 
     for tracer in tracers:
-        plt.scatter(values[tracer]['Branch_misses'], values[tracer]['L1_misses'], s=values[tracer]['latency'], color=colors[tracer], alpha=0.3, label=tracer)
+        plt.scatter(values[tracer]['L1_misses'], cpi[tracer], s=values[tracer]['latency']*0.8, color=tracers_colors[tracer], alpha=0.3, label=tracer)
 
     fontP = FontProperties()
     fontP.set_size('small')
     plt.title('Latency according to CPI and L1 misses')
-    plt.xlabel('Branch_misses')
-    plt.ylabel('L1_misses')
+    plt.xlabel('L1_misses')
+    plt.ylabel('CPI')
     plt.legend(prop=fontP)
     plt.show()
 
 
 def compile_scatter_plot_CPI(args):
     bytes = args['tp_sizes'][0]
-    tracers = ['none', 'lttng', 'ftrace', 'perf']
+    tracers = args['tracers']
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
-    colors = { 'none' : 'r', 'lttng': 'b', 'ftrace': 'y', 'perf': 'm' }
     values = defaultdict(list)
     cpi = defaultdict(list)
     ipc = defaultdict(list)
@@ -221,7 +199,8 @@ def compile_scatter_plot_CPI(args):
     plt.ylabel('Latency in ns')
     plt.legend(prop=fontP)
     for tracer in tracers:
-        plt.scatter(cpi[tracer], values[tracer]['latency'], color=colors[tracer], alpha=0.3, label=tracer)
+        plt.scatter(cpi[tracer], values[tracer]['latency'], color=tracers_colors[tracer], alpha=0.3, label=tracer)
+    plt.legend(prop=fontP)
 
     plt.subplot(2, 1, 1)
     plt.title('Latency according to IPC')
@@ -229,16 +208,16 @@ def compile_scatter_plot_CPI(args):
     plt.ylabel('Latency in ns')
     plt.legend(prop=fontP)
     for tracer in tracers:
-        plt.scatter(ipc[tracer], values[tracer]['latency'], color=colors[tracer], alpha=0.3, label=tracer)
+        plt.scatter(ipc[tracer], values[tracer]['latency'], color=tracers_colors[tracer], alpha=0.3, label=tracer)
 
+    plt.legend(prop=fontP)
     plt.show()
 
 
 def compile_scatter_plot(args):
     bytes = args['tp_sizes'][0]
-    tracers = ['none', 'lttng', 'ftrace', 'perf']
+    tracers = args['tracers']
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
-    colors = { 'none' : 'r', 'lttng': 'b', 'ftrace': 'y', 'perf': 'm' }
     values = defaultdict(list)
     fname = res_dir + 'none_' + str(bytes) + 'bytes_1process.hist'
     with open(fname, 'r') as f:
@@ -257,7 +236,7 @@ def compile_scatter_plot(args):
             if metric == 'latency':
                 continue
             metric = metric.strip()
-            plt.scatter(values[tracer][metric], values[tracer]['latency'], color=colors[tracer], alpha=0.3, label=tracer)
+            plt.scatter(values[tracer][metric], values[tracer]['latency'], color=tracers_colors[tracer], alpha=0.3, label=tracer)
         plt.title('Latency according to ' + metric)
         plt.xlabel(metric)
         plt.ylabel('Latency in ns')
@@ -266,12 +245,48 @@ def compile_scatter_plot(args):
     plt.show()
 
 
+"""
+Will analyze the .hist files.
+"""
+def compile_lttng_subbuf(args):
+    res_dir = '/home/mogeb/git/benchtrace/trace-client/'
+    tp_sizes = args['tp_sizes']
+    nprocesses = args['nprocesses']
+    tracer = 'lttng'
+    buf_sizes_kb = args['buf_sizes_kb']
+    perc = 0.90
+
+    for tp_size in tp_sizes:
+        percentiles = []
+        for buf_size_kb in buf_sizes_kb:
+            for tp_size in tp_sizes:
+                # fname = res_dir + tracer + '_' + str(byte_size) + 'bytes_' + nprocess + 'process.hist'
+                fname = tracer + '_' + str(tp_size) + 'bytes_' + buf_size_kb\
+                        + 'kbsubbuf_1_process.hist'
+                with open(fname, 'r') as f:
+                    legend = f.readline()
+                legend = legend.split(',')
+                values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None, invalid_raise=False)
+                # percentiles.append(np.percentile(values['latency'], perc))
+                percentiles.append(np.average(values['latency']))
+        plt.plot(buf_sizes_kb, percentiles, 'o-', label=tracer, color=tracers_colors[tracer])
+
+        plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to payload size')
+        plt.xlabel('Subbuffer size in kb')
+        plt.ylabel('Time in ns')
+        fontP = FontProperties()
+        fontP.set_size('small')
+
+        # imgname = 'pertp/90th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
+        plt.legend()
+        plt.show()
+        # plt.savefig(imgname + '.png', dpi=100)
+
+
 def compile_scatter_plot_3d(args):
     bytes = args['tp_sizes'][0]
-    tracers = ['none', 'lttng', 'ftrace', 'perf']
+    tracers = args['tracers']
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
-    metric = 'instructions'
-    colors = { 'none' : 'r', 'lttng': 'b', 'ftrace': 'y', 'perf': 'm' }
     values = defaultdict(list)
 
     fig = plt.figure()
@@ -301,43 +316,19 @@ def compile_scatter_plot_3d(args):
 
 def compile_histograms(args):
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
-    # none_values = np.genfromtxt(res_dir + 'none.out', delimiter=',', skip_header=2,
-    #               names=['latency'], dtype=None)
+    tracers = args['tracers']
+    tp_size = args['tp_sizes'][0]
+    nbins = 100
 
-    bytes = args['tp_sizes'][0]
-    nbins=2000
-    fname = res_dir + 'lttng_' + str(bytes) + 'bytes_1process.hist'
-    with open(fname, 'r') as f:
-        legend = f.readline()
-    legend = legend.split(',')
-    none_values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None)
-    plt.hist(none_values['latency'], bins=nbins, color='y', alpha=0.5, label='none')
-    plt.axis([0, 1000, 0, int(args['loop'])])
-    plt.show()
-    return
-    lttng_values = [ ( pylab.loadtxt(filename) ) for filename in [(res_dir + 'lttng.hist')] ] [0]
-    ftrace_values = [ ( pylab.loadtxt(filename) ) for filename in [(res_dir + 'ftrace.hist')] ][0]
-    perf_values = [ ( pylab.loadtxt(filename) ) for filename in [(res_dir + 'perf.hist')] ][0]
-
-
-    plt.hist(none_filtered.tolist(), normed=isnormed, cumulative=iscumul, bins=nbins, color='y', alpha=0.5, label='none')
-    plt.hist(lttng_filtered.tolist(), normed=isnormed, cumulative=iscumul, bins=nbins, color='b', label='lttng')
-    plt.hist(ftrace_filtered.tolist(), normed=isnormed, cumulative=iscumul, bins=nbins, color='r', alpha=0.5, label='ftrace')
-    plt.hist(perf_filtered.tolist(), normed=isnormed, cumulative=iscumul, bins=nbins, color='g', alpha=0.5, label='perf')
-    plt.title("Gaussian Histogram")
-    plt.xlabel("Value")
-    plt.ylabel("Frequency")
+    for tracer in tracers:
+        fname = res_dir + tracer + '_' + str(tp_size) + 'bytes_1process.hist'
+        with open(fname, 'r') as f:
+            legend = f.readline()
+        legend = legend.split(',')
+        values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None)
+        plt.hist(values['latency'], bins=nbins, color=tracers_colors[tracer], alpha=0.5, label=tracer)
     plt.legend()
-
     plt.show()
-
-
-    # plt.xlabel('Smarts')
-    # plt.ylabel('Probability')
-    # plt.grid(True)
-    #
-    # plt.show()
-
 
 
 def is_outlier(points, thresh=500000000):
@@ -351,32 +342,6 @@ def is_outlier(points, thresh=500000000):
     modified_z_score = 0.6745 * diff / med_abs_deviation
 
     return modified_z_score > thresh
-
-
-"""
-Get the nth percentile from values
-"""
-def getPercentile(values, density, n):
-    population = 0
-    count = 0
-
-    if not n < 1:
-        print('N must be smaller than 1')
-        return -1
-
-    if len(values) != len(density):
-        print('Values and density should be the same size')
-        return -1
-
-    for i in density:
-        population += i
-
-    for i in range(1, len(density)):
-        count += density[i]
-        if count > population * n:
-            return values[i]
-
-    return density[len(density)]
 
 
 def rstyle(ax):
