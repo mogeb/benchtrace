@@ -118,6 +118,18 @@ void tp_1kb(void)
     trace_empty_ioctl_1kb(zero_256b, zero_256b, zero_256b, zero_256b);
 }
 
+void tp_1p5kb(void)
+{
+    trace_empty_ioctl_1p5kb(zero_256b, zero_256b, zero_256b, zero_256b,
+                            zero_256b, zero_256b);
+}
+
+void tp_2kb(void)
+{
+    trace_empty_ioctl_2kb(zero_256b, zero_256b, zero_256b, zero_256b,
+                          zero_256b, zero_256b, zero_256b, zero_256b);
+}
+
 int start_benchmark(struct benchmod_arg arg)
 {
     int i, ret = 0, loop = arg.loop;
@@ -168,6 +180,14 @@ int start_benchmark(struct benchmod_arg arg)
 
     case 1024:
         do_tp = tp_1kb;
+        break;
+
+    case 1536:
+        do_tp = tp_1p5kb;
+        break;
+
+    case 2048:
+        do_tp = tp_2kb;
         break;
 
     default:

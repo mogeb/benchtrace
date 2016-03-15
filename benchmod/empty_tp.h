@@ -171,6 +171,60 @@ TRACE_EVENT(
     TP_printk("payload sizes = %d", 1024)
 )
 
+TRACE_EVENT(
+    empty_ioctl_1p5kb,
+    TP_PROTO(char p1[SIZE_256B], char p2[SIZE_256B],
+             char p3[SIZE_256B], char p4[SIZE_256B],
+             char p5[SIZE_256B], char p6[SIZE_256B]),
+    TP_ARGS(p1, p2, p3, p4, p5, p6),
+    TP_STRUCT__entry(
+        __array(char, p1, SIZE_256B)
+        __array(char, p2, SIZE_256B)
+        __array(char, p3, SIZE_256B)
+        __array(char, p4, SIZE_256B)
+        __array(char, p5, SIZE_256B)
+        __array(char, p6, SIZE_256B)
+    ),
+    TP_fast_assign(
+        memcpy(__entry->p1, p1, SIZE_256B);
+        memcpy(__entry->p2, p2, SIZE_256B);
+        memcpy(__entry->p3, p3, SIZE_256B);
+        memcpy(__entry->p4, p4, SIZE_256B);
+        memcpy(__entry->p5, p5, SIZE_256B);
+        memcpy(__entry->p6, p6, SIZE_256B);
+    ),
+    TP_printk("payload sizes = %d", 1536)
+)
+
+TRACE_EVENT(
+    empty_ioctl_2kb,
+    TP_PROTO(char p1[SIZE_256B], char p2[SIZE_256B],
+             char p3[SIZE_256B], char p4[SIZE_256B],
+             char p5[SIZE_256B], char p6[SIZE_256B],
+             char p7[SIZE_256B], char p8[SIZE_256B]),
+    TP_ARGS(p1, p2, p3, p4, p5, p6, p7, p8),
+    TP_STRUCT__entry(
+        __array(char, p1, SIZE_256B)
+        __array(char, p2, SIZE_256B)
+        __array(char, p3, SIZE_256B)
+        __array(char, p4, SIZE_256B)
+        __array(char, p5, SIZE_256B)
+        __array(char, p6, SIZE_256B)
+        __array(char, p7, SIZE_256B)
+        __array(char, p8, SIZE_256B)
+    ),
+    TP_fast_assign(
+        memcpy(__entry->p1, p1, SIZE_256B);
+        memcpy(__entry->p2, p2, SIZE_256B);
+        memcpy(__entry->p3, p3, SIZE_256B);
+        memcpy(__entry->p4, p4, SIZE_256B);
+        memcpy(__entry->p5, p5, SIZE_256B);
+        memcpy(__entry->p6, p6, SIZE_256B);
+        memcpy(__entry->p7, p7, SIZE_256B);
+        memcpy(__entry->p8, p8, SIZE_256B);
+    ),
+    TP_printk("payload sizes = %d", 2048)
+)
 #endif /* _TRACE_EMPTY_MODULE_H */
 
 #undef TRACE_INCLUDE_PATH

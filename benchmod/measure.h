@@ -28,6 +28,7 @@
 
 #define irq_stats(x)            (&per_cpu(irq_stat, x))
 
+#define METRIC_LEN 128
 #define PER_CPU_ALLOC 100000
 struct tracker_measurement_entry {
     u64 pmu1;
@@ -48,6 +49,11 @@ struct tracker_measurement_cpu_perf {
 
 struct perf_event_attr attr1, attr2, attr3, attr4;
 
+char metric1[METRIC_LEN];
+char metric2[METRIC_LEN];
+char metric3[METRIC_LEN];
+char metric4[METRIC_LEN];
+
 static struct tracker_measurement_cpu_perf __percpu *tracker_cpu_perf;
 
 #define BENCH_PREAMBULE unsigned long _bench_flags; \
@@ -62,7 +68,8 @@ static struct tracker_measurement_cpu_perf __percpu *tracker_cpu_perf;
         local_irq_save(_bench_flags); \
         _bench_nmi = irq_stats(smp_processor_id())->__nmi_count
 
-#define BENCH_GET_TS1 _bench_c->event1->pmu->read(_bench_c->event1); \
+#define BENCH_GET_TS1 \
+        _bench_c->event1->pmu->read(_bench_c->event1); \
         _bench_c->event2->pmu->read(_bench_c->event2); \
         _bench_c->event3->pmu->read(_bench_c->event3); \
         _bench_c->event4->pmu->read(_bench_c->event4); \
@@ -120,17 +127,19 @@ int alloc_measurements(void)
     attr1.config = PERF_COUNT_HW_CACHE_L1D | \
                PERF_COUNT_HW_CACHE_OP_READ << 8 | \
                PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+    strncat(metric1, "L1_misses", METRIC_LEN);
 
-//    /* attr2 = LLC-load-misses */
-//    attr2.size = sizeof(struct perf_event_attr);
-//    attr2.pinned = 1;
-//    attr2.disabled = 0;
-//    attr2.type = PERF_TYPE_HW_CACHE;
-//    attr2.config = PERF_COUNT_HW_CACHE_LL | \
-//               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
-//               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+    /* attr2 = LLC-load-misses */
+    attr2.size = sizeof(struct perf_event_attr);
+    attr2.pinned = 1;
+    attr2.disabled = 0;
+    attr2.type = PERF_TYPE_HW_CACHE;
+    attr2.config = PERF_COUNT_HW_CACHE_LL | \
+               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
+               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+    strncat(metric2, "LLC_misses", METRIC_LEN);
 
-//    /* attr3 = cache misses */
+    /* attr3 = cache misses */
 //    attr3.size = sizeof(struct perf_event_attr);
 //    attr3.pinned = 1;
 //    attr3.disabled = 0;
@@ -146,17 +155,17 @@ int alloc_measurements(void)
 //               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
 //               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
 
-    attr2.size = sizeof(struct perf_event_attr);
-    attr2.pinned = 1;
-    attr2.disabled = 0;
-    attr2.type = PERF_TYPE_HARDWARE;
-    attr2.config = PERF_COUNT_HW_BRANCH_MISSES;
+//    attr2.size = sizeof(struct perf_event_attr);
+//    attr2.pinned = 1;
+//    attr2.disabled = 0;
+//    attr2.type = PERF_TYPE_HARDWARE;
+//    attr2.config = PERF_COUNT_HW_BRANCH_MISSES;
 
-    attr3.size = sizeof(struct perf_event_attr);
-    attr3.pinned = 1;
-    attr3.disabled = 0;
-    attr3.type = PERF_TYPE_HARDWARE;
-    attr3.config = PERF_COUNT_HW_BRANCH_INSTRUCTIONS;
+//    attr3.size = sizeof(struct perf_event_attr);
+//    attr3.pinned = 1;
+//    attr3.disabled = 0;
+//    attr3.type = PERF_TYPE_HARDWARE;
+//    attr3.config = PERF_COUNT_HW_BRANCH_INSTRUCTIONS;
 
 //    attr2.size = sizeof(struct perf_event_attr);
 //    attr2.pinned = 1;
@@ -164,17 +173,19 @@ int alloc_measurements(void)
 //    attr2.type = PERF_TYPE_HARDWARE;
 //    attr2.config = PERF_COUNT_HW_BUS_CYCLES;
 
+    attr3.size = sizeof(struct perf_event_attr);
+    attr3.pinned = 1;
+    attr3.disabled = 0;
+    attr3.type = PERF_TYPE_HARDWARE;
+    attr3.config = PERF_COUNT_HW_CPU_CYCLES;
+    strncat(metric3, "CPU_cycles", METRIC_LEN);
+
     attr4.size = sizeof(struct perf_event_attr);
     attr4.pinned = 1;
     attr4.disabled = 0;
     attr4.type = PERF_TYPE_HARDWARE;
-    attr4.config = PERF_COUNT_HW_CPU_CYCLES;
-
-//    attr4.size = sizeof(struct perf_event_attr);
-//    attr4.pinned = 1;
-//    attr4.disabled = 0;
-//    attr4.type = PERF_TYPE_HARDWARE;
-//    attr4.config = PERF_COUNT_HW_INSTRUCTIONS;
+    attr4.config = PERF_COUNT_HW_INSTRUCTIONS;
+    strncat(metric4, "Instructions", METRIC_LEN);
 
 //    attr1.size = sizeof(struct perf_event_attr);
 //    attr1.pinned = 1;
@@ -260,7 +271,8 @@ void output_measurements(void)
         goto end;
     }
 
-    snprintf(buf, 256, "latency,L1_misses,Branch_misses,Branch_instructions,CPU_cycles\n");
+    snprintf(buf, 256, "latency,%s,%s,%s,%s\n", metric1, metric2, metric3,
+             metric4);
     vfs_write(file, buf, strlen(buf), &pos);
     for_each_online_cpu(cpu) {
         struct tracker_measurement_cpu_perf *_bench_c;
