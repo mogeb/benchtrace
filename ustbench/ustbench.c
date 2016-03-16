@@ -8,6 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#define NCPUS 8
 #define METRIC_LEN 128
 #define PER_CPU_ALLOC 100000
 #define MIN(a, b) (a) < (b) ? (a) : (b)
@@ -57,7 +58,7 @@ struct poptOption options[] = {
     POPT_AUTOHELP
 };
 
-struct measurement_cpu_perf cpu_perf;
+struct measurement_cpu_perf cpu_perf[NCPUS];
 
 char metric1[METRIC_LEN];
 char metric2[METRIC_LEN];
@@ -94,11 +95,32 @@ struct timespec do_ts_diff(struct timespec start,
     return temp;
 }
 
+void output_measurements()
+{
+    int i, cpu;
+    FILE *outfile;
+
+    outfile = fopen("/tmp/out.csv", "w+");
+    fprintf(outfile, "latency,%s,%s,%s,%s\n", metric1, metric2, metric3, metric4);
+    for(cpu = 0; cpu < NCPUS; cpu++) {
+        for(i = 0; i < cpu_perf[cpu].pos; i++) {
+            fprintf(outfile, "%lu,%lu,%lu,%lu,%lu\n", cpu_perf[cpu].entries[i].latency,
+                    cpu_perf[cpu].entries[i].pmu1,
+                    cpu_perf[cpu].entries[i].pmu2,
+                    cpu_perf[cpu].entries[i].pmu3,
+                    cpu_perf[cpu].entries[i].pmu4);
+        }
+    }
+    fclose(outfile);
+}
+
 void perf_init()
 {
-    cpu_perf.entries = (struct measurement_entry*) malloc(PER_CPU_ALLOC *
+    for(int i = 0; i < NCPUS; i++) {
+        cpu_perf[i].entries = (struct measurement_entry*) malloc(PER_CPU_ALLOC *
                     sizeof(struct measurement_entry));
-    cpu_perf.pos = 0;
+        cpu_perf[i].pos = 0;
+    }
 
     attr1.size = sizeof(struct perf_event_attr);
     attr1.pinned = 1;
@@ -154,7 +176,9 @@ void *do_work(void *a)
     int i, min;
     struct worker_thread_args *args;
     args = (struct worker_thread_args*) a;
+    int cpu = args->id;
     printf("loops = %d\n", args->loops);
+    printf("cpu = %d\n", cpu);
     unsigned long pmu1_start, pmu1_end;
     unsigned long pmu2_start, pmu2_end;
     unsigned long pmu3_start, pmu3_end;
@@ -185,32 +209,16 @@ void *do_work(void *a)
         read(fdPmu3, &pmu3_end, sizeof(pmu3_end));
 
         ts_diff = do_ts_diff(ts_start, ts_end);
-        cpu_perf.entries[i].pmu1 = pmu1_end - pmu1_start;
-        cpu_perf.entries[i].pmu2 = pmu2_end - pmu2_start;
-        cpu_perf.entries[i].pmu3 = pmu3_end - pmu3_start;
-        cpu_perf.entries[i].pmu4 = pmu4_end - pmu4_start;
-        cpu_perf.entries[i].latency = ts_diff.tv_sec * 1000000000 +
+        cpu_perf[cpu].entries[i].pmu1 = pmu1_end - pmu1_start;
+        cpu_perf[cpu].entries[i].pmu2 = pmu2_end - pmu2_start;
+        cpu_perf[cpu].entries[i].pmu3 = pmu3_end - pmu3_start;
+        cpu_perf[cpu].entries[i].pmu4 = pmu4_end - pmu4_start;
+        cpu_perf[cpu].entries[i].latency = ts_diff.tv_sec * 1000000000 +
                 ts_diff.tv_nsec;
+        cpu_perf[cpu].pos++;
     }
 
-    outfile = fopen("/tmp/out.csv", "w+");
-    printf("latency,%s,%s,%s,%s\n", metric1, metric2, metric3, metric4);
-    fprintf(outfile, "latency,%s,%s,%s,%s\n", metric1, metric2, metric3, metric4);
 
-    for(i = 0; i < min; i++) {
-        fprintf(outfile, "%lu,%lu,%lu,%lu,%lu\n", cpu_perf.entries[i].latency,
-                cpu_perf.entries[i].pmu1,
-                cpu_perf.entries[i].pmu2,
-                cpu_perf.entries[i].pmu3,
-                cpu_perf.entries[i].pmu4);
-//        printf("%lu,%lu,%lu,%lu,%lu\n", cpu_perf.entries[i].latency,
-//                cpu_perf.entries[i].pmu1,
-//                cpu_perf.entries[i].pmu2,
-//                cpu_perf.entries[i].pmu3,
-//                cpu_perf.entries[i].pmu4);
-    }
-
-    fclose(outfile);
 
     return 0;
 }
@@ -226,13 +234,13 @@ int main(int argc, char **argv)
     parse_args(argc, argv, &pc);
     threads = (pthread_t*) malloc(popt_args.nthreads * sizeof(pthread_t));
     worker_args = (struct worker_thread_args*)
-            malloc(sizeof(struct worker_thread_args));
+            malloc(popt_args.nthreads * sizeof(struct worker_thread_args));
 
     perf_init();
 
-    worker_args->id = i;
-    worker_args->loops = popt_args.loops;
     for(i = 0; i < popt_args.nthreads; i++) {
+        worker_args[i].id = i;
+        worker_args[i].loops = popt_args.loops / popt_args.nthreads;
         printf("nthreads = %d\n", popt_args.nthreads);
         /* Set CPU affinity for each thread*/
         cpu_set_t cpu_set;
@@ -243,12 +251,14 @@ int main(int argc, char **argv)
         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set), &cpu_set);
         printf("loops = %d\n", worker_args->loops);
 
-        pthread_create(&threads[i], &attr, do_work, (void*) worker_args);
+        pthread_create(&threads[i], &attr, do_work, (void*) &worker_args[i]);
     }
 
     for(i = 0; i < popt_args.nthreads; i++) {
         pthread_join(threads[i], NULL);
     }
+
+    output_measurements();
 
     return 0;
 }
