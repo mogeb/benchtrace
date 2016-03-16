@@ -1,0 +1,4 @@
+probe process("/home/mogeb/git/benchtrace/ustbench/ustbench").statement("*@ustbench.c:179") {
+  a = gettimeofday_ns()
+  (block) a
+}
