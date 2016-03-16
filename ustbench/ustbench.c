@@ -116,7 +116,9 @@ void output_measurements()
 
 void perf_init()
 {
-    for(int i = 0; i < NCPUS; i++) {
+    int i;
+
+    for(i = 0; i < NCPUS; i++) {
         cpu_perf[i].entries = (struct measurement_entry*) malloc(PER_CPU_ALLOC *
                     sizeof(struct measurement_entry));
         cpu_perf[i].pos = 0;
