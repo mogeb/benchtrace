@@ -31,3 +31,6 @@ bin/
 
 # Perf
 perf.data*
+
+# Data
+*.hist
