@@ -7,6 +7,9 @@ BUILDDIR = bin
 
 all: $(BIN)
 
+dir:
+	mkdir -p $(BUILDDIR)
+
 $(BIN): | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(SOURCE) -o $(BUILDDIR)/$(BIN) $(LIBS)
 
