@@ -277,6 +277,10 @@ int main(int argc, char **argv)
     pthread_t *threads;
     poptContext pc;
 
+    popt_args.tracer = "lttng-ust";
+    popt_args.loops = 10;
+    popt_args.nthreads = 1;
+
     parse_args(argc, argv, &pc);
     threads = (pthread_t*) malloc(popt_args.nthreads * sizeof(pthread_t));
     worker_args = (struct worker_thread_args*)
