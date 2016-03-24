@@ -130,21 +130,22 @@ int alloc_measurements(void)
     strncat(metric1, "L1_misses", METRIC_LEN);
 
     /* attr2 = LLC-load-misses */
+//    attr2.size = sizeof(struct perf_event_attr);
+//    attr2.pinned = 1;
+//    attr2.disabled = 0;
+//    attr2.type = PERF_TYPE_HW_CACHE;
+//    attr2.config = PERF_COUNT_HW_CACHE_LL | \
+//               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
+//               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+//    strncat(metric2, "LLC_misses", METRIC_LEN);
+
+    /* attr2 = cache misses */
     attr2.size = sizeof(struct perf_event_attr);
     attr2.pinned = 1;
     attr2.disabled = 0;
-    attr2.type = PERF_TYPE_HW_CACHE;
-    attr2.config = PERF_COUNT_HW_CACHE_LL | \
-               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
-               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
-    strncat(metric2, "LLC_misses", METRIC_LEN);
-
-    /* attr3 = cache misses */
-//    attr3.size = sizeof(struct perf_event_attr);
-//    attr3.pinned = 1;
-//    attr3.disabled = 0;
-//    attr3.type = PERF_TYPE_HARDWARE;
-//    attr3.config = PERF_COUNT_HW_CACHE_MISSES;
+    attr2.type = PERF_TYPE_HARDWARE;
+    attr2.config = PERF_COUNT_HW_CACHE_MISSES;
+    strncat(metric2, "Cache_misses", METRIC_LEN);
 
 //    /* attr4 = dTLB-load-misses */
 //    attr4.size = sizeof(struct perf_event_attr);
