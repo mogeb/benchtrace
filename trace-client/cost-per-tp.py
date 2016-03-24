@@ -1,4 +1,4 @@
-from _snack import label
+# from _snack import label
 
 import shutil
 import numpy as np
@@ -14,7 +14,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 
 tracers_colors = { 'none': 'r', 'lttng': 'b', 'ftrace': 'y', 'perf': 'm',
-                   'kprobe': 'lightskyblue', 'jprobe': 'teal' }
+                   'kprobe': 'lightskyblue', 'jprobe': 'teal', 'ebpf': 'darkseagreen'}
 
 def init(args = None):
     return
@@ -39,12 +39,16 @@ def do_work(tracer, tracer_name, args = None):
                 if tracer_name == 'perf':
                     call("perf record -e 'empty_tp:empty_ioctl_" + tp_size_str + "b' /home/mogeb/git/benchtrace/all-calls/bin/allcalls -t "
                          + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
+                elif tracer_name == 'ebpf':
+                    call("python2 /home/mogeb/git/benchtrace/ebpf-kernel/ebpf-empty-tp.py -n %s -p %s" %\
+                         (loops, str(i)), shell=True)
                 else:
                     call("/home/mogeb/git/benchtrace/all-calls/bin/allcalls -t "
                          + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
                 tracer.stop_tracing('session-test')
                 shutil.copyfile('/tmp/out.csv', tracer_name + '_' + tp_size + 'bytes_' + buf_size_kb
                                 + 'kbsubbuf_' + i + '_process.hist')
+
 
 def cleanup(args = None):
     return
@@ -54,8 +58,8 @@ def compile_results(args):
     # compile_percentiles(args)
     # compile_percentiles_nthreads(args)
     # compile_histograms(args)
-    # compile_scatter_plot(args)
-    # compile_scatter_plot_CPI(args)
+    compile_scatter_plot(args)
+    compile_scatter_plot_CPI(args)
     compile_lttng_subbuf(args)
     return
 
@@ -82,7 +86,7 @@ def compile_percentiles_nthreads(args):
                     values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None, invalid_raise=False)
                     percentiles[tracer].append(np.percentile(values['latency'], perc))
                     # percentiles[tracer].append(np.average(values['latency']))
-                plt.plot(nprocesses, percentiles[tracer], 'o-', label=tracer)
+                plt.plot(nprocesses, percentiles[tracer], 'o-', label=tracer, color=tracers_colors[tracer])
 
             plt.title(str(int(perc * 100)) + 'th percentiles of tracepoint latency according to the number of threads')
             plt.xlabel('Number of threads')
@@ -90,8 +94,8 @@ def compile_percentiles_nthreads(args):
             fontP = FontProperties()
             fontP.set_size('small')
 
-            imgname = 'pertp/' + str(int(perc * 100)) + 'th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
-            plt.axis([0, 9, 0, 900])
+            imgname = 'pertp/' + str(int(perc * 100)) + 'th_' + nprocess + 'proc_' + buf_size_kb + 'subbuf_kb'
+            # plt.axis([0, 9, 0, 900])
             plt.legend(prop=fontP, loc='upper left')
             plt.show()
             # plt.savefig(imgname + '.png', dpi=100)
@@ -168,21 +172,25 @@ def compile_scatter_plot_ICL(args):
 
 
 def compile_scatter_plot_CPI(args):
-    bytes = args['tp_sizes'][0]
+    tp_size = args['tp_sizes'][0]
     tracers = args['tracers']
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
+    buf_sizes_kb = args['buf_sizes_kb']
+    nprocesses = args['nprocesses']
     values = defaultdict(list)
     cpi = defaultdict(list)
     ipc = defaultdict(list)
     handles = defaultdict(list)
 
-    fname = res_dir + 'none_' + str(bytes) + 'bytes_1process.hist'
+    fname = tracers[0] + '_' + str(tp_size) + 'bytes_' + buf_sizes_kb[0]\
+                            + 'kbsubbuf_' + nprocesses[0] + '_process.hist'
     with open(fname, 'r') as f:
         legend = f.readline()
     legend = legend.split(',')
     i = 0
     for tracer in tracers:
-        fname = res_dir + tracer + '_' + str(bytes) + 'bytes_1process.hist'
+        fname = res_dir + tracer + '_' + str(tp_size) + 'bytes_' + buf_sizes_kb[0]\
+                            + 'kbsubbuf_' + nprocesses[0] + '_process.hist'
         values[tracer] = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=int)
 
     fontP = FontProperties()
@@ -215,17 +223,22 @@ def compile_scatter_plot_CPI(args):
 
 
 def compile_scatter_plot(args):
-    bytes = args['tp_sizes'][0]
+    tp_size = args['tp_sizes'][0]
     tracers = args['tracers']
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
+    buf_sizes_kb = args['buf_sizes_kb']
+    nprocesses = args['nprocesses']
     values = defaultdict(list)
-    fname = res_dir + 'none_' + str(bytes) + 'bytes_1process.hist'
+
+    fname = tracers[0] + '_' + str(tp_size) + 'bytes_' + buf_sizes_kb[0]\
+                            + 'kbsubbuf_' + nprocesses[0] + '_process.hist'
     with open(fname, 'r') as f:
         legend = f.readline()
     legend = legend.split(',')
     i = 0
     for tracer in tracers:
-        fname = res_dir + tracer + '_' + str(bytes) + 'bytes_1process.hist'
+        fname = res_dir + tracer + '_' + str(tp_size) + 'bytes_' + buf_sizes_kb[0]\
+                            + 'kbsubbuf_' + nprocesses[0] + '_process.hist'
         values[tracer] = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None)
 
     fontP = FontProperties()
