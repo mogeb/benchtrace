@@ -7,18 +7,24 @@ from time import sleep
 from subprocess import call
 import getopt
 import sys
+import ctypes as ct
 
-b = BPF(src_file="ebpf-interface.c")
-b.attach_kprobe(event="tp_4b", fn_name="connect_tp")
+class Event(ct.Structure):
+    _fields_ = [
+        ("ts", ct.c_ulonglong),
+        ("payload", ct.c_int)
+     ]
 
-# try:
-#     print("Ctrl-C to stop")
-#     sleep(99999999)
-# except KeyboardInterrupt:
-#     pass
-
+def print_event(cpu, data, size):
+    event = ct.cast(data, ct.POINTER(Event)).contents
+#    print(event.ts)
 
 if __name__ == "__main__":
+    b = BPF(src_file="ebpf-interface.c")
+    b.attach_kprobe(event="tp_4b", fn_name="connect_tp")
+    b["trace"].open_perf_buffer(print_event)
+#    b.attach_kprobe(event="update_wall_time", fn_name="connect_tp")
+
     args = sys.argv
     try:
         optlist, args = getopt.getopt(args[1:], "p:n:")
@@ -36,7 +42,5 @@ if __name__ == "__main__":
 
     call(('/home/mogeb/git/benchtrace/all-calls/bin/allcalls -n %s -p %s') % (loops, threads), shell=True)
 
-    #sleep(3)
-    trace = b.get_table('trace')
-#    for k, v in trace.items():
-#        print("TS = %d, payload = %d" % (k.value, v.value))
+#    while 1:
+#        b.kprobe_poll()

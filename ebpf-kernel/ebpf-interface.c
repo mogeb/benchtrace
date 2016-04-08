@@ -1,20 +1,23 @@
 #include <uapi/linux/ptrace.h>
 
+struct event {
+    u64 ts;
+    u32 payload;
+};
 
-// map_type, key_type, leaf_type, table_name, num_entry
-//BPF_TABLE("hash", struct key_t, u64, stats, 1024);
-// trace: <timestamp, payload>
-BPF_TABLE("hash", u64, u32, trace, 100000);
-//BPF_HASH(mytrace, u64, u32);
+BPF_PERF_OUTPUT(trace);
 
 int connect_tp(struct pt_regs *ctx, void *p)
 {
     u64 ts;
     u32 payload;
+    struct event ev = {};
 
     ts = bpf_ktime_get_ns();
+    ev.ts = ts;
     payload = 0;
-    trace.lookup_or_init(&ts, &payload);
+    ev.payload = payload;
+    trace.perf_submit(ctx, &ev, sizeof(ev));
 
     return 0;
 }
