@@ -1,5 +1,5 @@
 probe kernel.function("sys_open") {
-  a = gettimeofday_ns()
-  (block) a
-  print("time = " + a)
+  now_time = gettimeofday_ns()
+  (block) now_time
+  print(now_time, "\n")
 }
