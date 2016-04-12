@@ -206,6 +206,10 @@ static void dump(char *tracer, struct timespec timespan)
 //    file = fopen(outfile, "w+");
     fd = open(BENCHMOD_NAME, O_RDONLY);
 
+    if(fd == -1) {
+        printf("Error opening the file %s\n", BENCHMOD_NAME);
+    }
+
     /* Dump the content of /proc/benchmod */
     while(read(fd, huge, 1048576) > 0) {
 //        fprintf(file, "%s", huge);
