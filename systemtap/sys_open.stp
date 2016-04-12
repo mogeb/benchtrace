@@ -1,0 +1,5 @@
+probe kernel.function("sys_open") {
+  a = gettimeofday_ns()
+  (block) a
+  print("time = " + a)
+}

@@ -1,5 +1,5 @@
-probe process("/home/mogeb/git/benchtrace/ustbench/bin/ustbench").function("__tracepoint_cb_ustbench___bench_tp_4b") {
+probe process("/home/mogeb/git/benchtrace/ustbench/bin/ustbench").function("do_lttng_ust_tp") {
   a = gettimeofday_ns()
   (block) a
-  print("TP probe")
+  print("TP probe", a, "\n")
 }
