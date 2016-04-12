@@ -17,13 +17,13 @@ def main(args):
     """
     Default values
     """
-    loop = 100
-    # buf_size_kb = 524288
+    loop = 1000
     buf_size_kb = 262144
     do_work = False
     num_sub_buf_kb = 4
     buf_sizes_kb = [131072]
     tp_sizes = [4]
+    nprocesses = ['1']
 
     """
     Parse arguments

@@ -10,9 +10,6 @@ except ImportError:
     import lttng
 
 
-"""
-Enable tracing
-"""
 def start_tracing(tracename, args, tracepoints = None):
     try:
         os.rmdir('kernel')
@@ -47,9 +44,6 @@ def start_tracing(tracename, args, tracepoints = None):
     call(cmd, shell=True)
 
 
-"""
-Disable tracing
-"""
 def stop_tracing(tracename):
     call('lttng stop', shell=True)
     call('lttng destroy ' + tracename, shell=True)

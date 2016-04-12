@@ -14,10 +14,13 @@ from mpl_toolkits.mplot3d import Axes3D
 
 
 tracers_colors = { 'none': 'r', 'lttng': 'b', 'ftrace': 'y', 'perf': 'm',
-                   'kprobe': 'lightskyblue', 'jprobe': 'teal', 'ebpf': 'darkseagreen'}
+                   'kprobe': 'lightskyblue', 'jprobe': 'teal', 'ebpf': 'darksalmon',
+                   'lttng-kprobe': 'cadetblue'}
+
 
 def init(args = None):
     return
+
 
 def do_work(tracer, tracer_name, args = None):
     loops = str(args['loop'])
@@ -37,17 +40,21 @@ def do_work(tracer, tracer_name, args = None):
                 args['tp_size'] = tp_size_str
                 tracer.start_tracing('session-test', args)
                 if tracer_name == 'perf':
-                    call("perf record -e 'empty_tp:empty_ioctl_" + tp_size_str + "b' /home/mogeb/git/benchtrace/all-calls/bin/allcalls -t "
-                         + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
+                    perf_bin = '/home/mogeb/src/linux-4.5/tools/perf/perf'
+                    call(perf_bin + " record -e 'empty_tp:empty_ioctl_" + tp_size_str +
+                         "b' /home/mogeb/git/benchtrace/all-calls/bin/allcalls " +
+                         " -t" + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name +
+                         ".out" + " -s " + tp_size, shell=True)
                 elif tracer_name == 'ebpf':
                     call("python2 /home/mogeb/git/benchtrace/ebpf-kernel/ebpf-empty-tp.py -n %s -p %s" %\
                          (loops, str(i)), shell=True)
                 else:
                     call("/home/mogeb/git/benchtrace/all-calls/bin/allcalls -t "
-                         + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name + ".out" + " -s " + tp_size, shell=True)
+                         + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name +
+                         ".out" + " -s " + tp_size, shell=True)
                 tracer.stop_tracing('session-test')
                 shutil.copyfile('/tmp/out.csv', tracer_name + '_' + tp_size + 'bytes_' + buf_size_kb
-                                + 'kbsubbuf_' + i + '_process.hist')
+                                + 'kbsubbuf_' + str(i) + '_process.hist')
 
 
 def cleanup(args = None):
@@ -60,7 +67,7 @@ def compile_results(args):
     # compile_histograms(args)
     compile_scatter_plot(args)
     compile_scatter_plot_CPI(args)
-    compile_lttng_subbuf(args)
+    # compile_lttng_subbuf(args)
     return
 
 
@@ -83,27 +90,28 @@ def compile_percentiles_nthreads(args):
                     with open(fname, 'r') as f:
                         legend = f.readline()
                     legend = legend.split(',')
-                    values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None, invalid_raise=False)
+                    values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None,
+                                           invalid_raise=False)
                     percentiles[tracer].append(np.percentile(values['latency'], perc))
                     # percentiles[tracer].append(np.average(values['latency']))
                 plt.plot(nprocesses, percentiles[tracer], 'o-', label=tracer, color=tracers_colors[tracer])
 
-            plt.title(str(int(perc * 100)) + 'th percentiles of tracepoint latency according to the number of threads')
+            plt.title(str(int(perc * 100)) + 'th percentiles of tracepoint latency according to the number'
+                                             'of threads')
             plt.xlabel('Number of threads')
             plt.ylabel('Latency in ns')
             fontP = FontProperties()
             fontP.set_size('small')
 
-            imgname = 'pertp/' + str(int(perc * 100)) + 'th_' + nprocess + 'proc_' + buf_size_kb + 'subbuf_kb'
+            imgname = 'pertp/' + str(int(perc * 100)) + 'th_' + nprocess + 'proc_' +\
+                      buf_size_kb + 'subbuf_kb'
             # plt.axis([0, 9, 0, 900])
             plt.legend(prop=fontP, loc='upper left')
             plt.show()
             # plt.savefig(imgname + '.png', dpi=100)
 
 
-"""
-Will analyze the .hist files.
-"""
+
 def compile_percentiles(args):
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
     tp_sizes = args['tp_sizes']
@@ -123,11 +131,13 @@ def compile_percentiles(args):
                     with open(fname, 'r') as f:
                         legend = f.readline()
                     legend = legend.split(',')
-                    values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None, invalid_raise=False)
+                    values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None,
+                                           invalid_raise=False)
                     percentiles.append(np.percentile(values['latency'], perc))
                 plt.plot(tp_sizes, percentiles, 'o-', label=tracer, color=tracers_colors[tracer])
 
-            plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to payload size')
+            plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to'
+                                             'payload size')
             plt.xlabel('Payload size in bytes')
             plt.ylabel('Time in ns')
             fontP = FontProperties()
@@ -147,6 +157,7 @@ def compile_scatter_plot_ICL(args):
     cpi = defaultdict(list)
 
     fname = res_dir + 'none_' + str(bytes) + 'bytes_1process.hist'
+
     with open(fname, 'r') as f:
         legend = f.readline()
     legend = legend.split(',')
@@ -160,7 +171,8 @@ def compile_scatter_plot_ICL(args):
             cpi[tracer].append(values[tracer]['CPU_cycles'][i] / values[tracer]['Instructions'][i])
 
     for tracer in tracers:
-        plt.scatter(values[tracer]['L1_misses'], cpi[tracer], s=values[tracer]['latency']*0.8, color=tracers_colors[tracer], alpha=0.3, label=tracer)
+        plt.scatter(values[tracer]['L1_misses'], cpi[tracer], s=values[tracer]['latency']*0.8,
+                    color=tracers_colors[tracer], alpha=0.3, label=tracer)
 
     fontP = FontProperties()
     fontP.set_size('small')
@@ -207,7 +219,8 @@ def compile_scatter_plot_CPI(args):
     plt.ylabel('Latency in ns')
     plt.legend(prop=fontP)
     for tracer in tracers:
-        plt.scatter(cpi[tracer], values[tracer]['latency'], color=tracers_colors[tracer], alpha=0.3, label=tracer)
+        plt.scatter(cpi[tracer], values[tracer]['latency'], color=tracers_colors[tracer], alpha=0.3,
+                    label=tracer)
     plt.legend(prop=fontP)
 
     plt.subplot(2, 1, 1)
@@ -216,7 +229,8 @@ def compile_scatter_plot_CPI(args):
     plt.ylabel('Latency in ns')
     plt.legend(prop=fontP)
     for tracer in tracers:
-        plt.scatter(ipc[tracer], values[tracer]['latency'], color=tracers_colors[tracer], alpha=0.3, label=tracer)
+        plt.scatter(ipc[tracer], values[tracer]['latency'], color=tracers_colors[tracer], alpha=0.3,
+                    label=tracer)
 
     plt.legend(prop=fontP)
     plt.show()
@@ -249,7 +263,8 @@ def compile_scatter_plot(args):
             if metric == 'latency':
                 continue
             metric = metric.strip()
-            plt.scatter(values[tracer][metric], values[tracer]['latency'], color=tracers_colors[tracer], alpha=0.3, label=tracer)
+            plt.scatter(values[tracer][metric], values[tracer]['latency'], color=tracers_colors[tracer],
+                        alpha=0.3, label=tracer)
         plt.title('Latency according to ' + metric)
         plt.xlabel(metric)
         plt.ylabel('Latency in ns')
@@ -279,12 +294,14 @@ def compile_lttng_subbuf(args):
                 with open(fname, 'r') as f:
                     legend = f.readline()
                 legend = legend.split(',')
-                values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None, invalid_raise=False)
+                values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None,
+                                       invalid_raise=False)
                 # percentiles.append(np.percentile(values['latency'], perc))
                 percentiles.append(np.average(values['latency']))
         plt.plot(buf_sizes_kb, percentiles, 'o-', label=tracer, color=tracers_colors[tracer])
 
-        plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to payload size')
+        plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to'
+                                         'payload size')
         plt.xlabel('Subbuffer size in kb')
         plt.ylabel('Time in ns')
         fontP = FontProperties()
@@ -312,13 +329,15 @@ def compile_scatter_plot_3d(args):
     i = 0
     for tracer in tracers:
         fname = res_dir + tracer + '_' + str(bytes) + 'bytes_1process.hist'
-        values[tracer] = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None)
+        values[tracer] = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend,
+                                       dtype=None)
 
     fontP = FontProperties()
     fontP.set_size('small')
 
     for tracer in tracers:
-        ax.scatter(values[tracer]['cache_misses'], values[tracer]['Instructions'], values[tracer]['latency'])
+        ax.scatter(values[tracer]['cache_misses'], values[tracer]['Instructions'],
+                   values[tracer]['latency'])
     plt.title('Latency according to cache_misses and instructions')
     ax.set_xlabel('cache_misses')
     ax.set_ylabel('Instructions')
@@ -339,7 +358,8 @@ def compile_histograms(args):
             legend = f.readline()
         legend = legend.split(',')
         values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None)
-        plt.hist(values['latency'], bins=nbins, color=tracers_colors[tracer], alpha=0.5, label=tracer)
+        plt.hist(values['latency'], bins=nbins, color=tracers_colors[tracer], alpha=0.5,
+                 label=tracer)
     plt.legend()
     plt.show()
 

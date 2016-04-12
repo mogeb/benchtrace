@@ -10,9 +10,6 @@ except ImportError:
     import lttng
 
 
-"""
-Enable tracing
-"""
 def start_tracing(tracename, args, tracepoints = None):
     try:
         os.rmdir('kernel')
