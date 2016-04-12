@@ -11,7 +11,6 @@
 #include <sys/ioctl.h>
 
 #include "lightweight-ust.h"
-#include "rdpmc_utils.h"
 #include "ustbench.h"
 
 #define NCPUS 8
@@ -37,10 +36,12 @@ void output_measurements()
     FILE *outfile;
 
     outfile = fopen("/tmp/out.csv", "w+");
-    fprintf(outfile, "latency,%s,%s,%s,%s\n", metric1, metric2, metric3, metric4);
+    fprintf(outfile, "latency,%s,%s,%s,%s\n", metric1, metric2, metric3,
+            metric4);
     for(cpu = 0; cpu < NCPUS; cpu++) {
         for(i = 0; i < cpu_perf[cpu].pos; i++) {
-            fprintf(outfile, "%lu,%lu,%lu,%lu,%lu\n", cpu_perf[cpu].entries[i].latency,
+            fprintf(outfile, "%lu,%lu,%lu,%lu,%lu\n",
+                    cpu_perf[cpu].entries[i].latency,
                     cpu_perf[cpu].entries[i].pmu1,
                     cpu_perf[cpu].entries[i].pmu2,
                     cpu_perf[cpu].entries[i].pmu3,
