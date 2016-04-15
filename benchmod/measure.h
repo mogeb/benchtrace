@@ -129,6 +129,9 @@ int alloc_measurements(void)
                PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
     strncat(metric1, "L1_misses", METRIC_LEN);
 
+    /**
+      WARNING: LLC MISSES CRASHES!!!
+    **/
     /* attr2 = LLC-load-misses */
 //    attr2.size = sizeof(struct perf_event_attr);
 //    attr2.pinned = 1;
@@ -138,6 +141,9 @@ int alloc_measurements(void)
 //               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
 //               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
 //    strncat(metric2, "LLC_misses", METRIC_LEN);
+    /**
+      WARNING: LLC MISSES CRASHES!!!
+    **/
 
     /* attr2 = cache misses */
     attr2.size = sizeof(struct perf_event_attr);
@@ -147,32 +153,36 @@ int alloc_measurements(void)
     attr2.config = PERF_COUNT_HW_CACHE_MISSES;
     strncat(metric2, "Cache_misses", METRIC_LEN);
 
-//    /* attr4 = dTLB-load-misses */
-//    attr4.size = sizeof(struct perf_event_attr);
-//    attr4.pinned = 1;
-//    attr4.disabled = 0;
-//    attr4.type = PERF_TYPE_HW_CACHE;
-//    attr4.config = PERF_COUNT_HW_CACHE_DTLB | \
-//               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
-//               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
-
+    /* attr4 = dTLB-load-misses */
 //    attr2.size = sizeof(struct perf_event_attr);
 //    attr2.pinned = 1;
 //    attr2.disabled = 0;
-//    attr2.type = PERF_TYPE_HARDWARE;
-//    attr2.config = PERF_COUNT_HW_BRANCH_MISSES;
+//    attr2.type = PERF_TYPE_HW_CACHE;
+//    attr2.config = PERF_COUNT_HW_CACHE_DTLB | \
+//               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
+//               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+//    strncat(metric2, "TLB_misses", METRIC_LEN);
 
 //    attr3.size = sizeof(struct perf_event_attr);
 //    attr3.pinned = 1;
 //    attr3.disabled = 0;
 //    attr3.type = PERF_TYPE_HARDWARE;
-//    attr3.config = PERF_COUNT_HW_BRANCH_INSTRUCTIONS;
+//    attr3.config = PERF_COUNT_HW_BRANCH_MISSES;
+//    strncat(metric3, "Branch_misses", METRIC_LEN);
 
-//    attr2.size = sizeof(struct perf_event_attr);
-//    attr2.pinned = 1;
-//    attr2.disabled = 0;
-//    attr2.type = PERF_TYPE_HARDWARE;
-//    attr2.config = PERF_COUNT_HW_BUS_CYCLES;
+//    attr4.size = sizeof(struct perf_event_attr);
+//    attr4.pinned = 1;
+//    attr4.disabled = 0;
+//    attr4.type = PERF_TYPE_HARDWARE;
+//    attr4.config = PERF_COUNT_HW_BRANCH_INSTRUCTIONS;
+//    strncat(metric4, "Branch_instructions", METRIC_LEN);
+
+//    attr1.size = sizeof(struct perf_event_attr);
+//    attr1.pinned = 1;
+//    attr1.disabled = 0;
+//    attr1.type = PERF_TYPE_HARDWARE;
+//    attr1.config = PERF_COUNT_HW_BUS_CYCLES;
+//    strncat(metric1, "Bus_cycles", METRIC_LEN);
 
     attr3.size = sizeof(struct perf_event_attr);
     attr3.pinned = 1;

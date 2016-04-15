@@ -222,6 +222,11 @@ long benchmod_ioctl(
     struct benchmod_arg *benchmod_arg;
     benchmod_arg = (struct benchmod_arg*) ioctl_param;
 
+    if(!ioctl_param) {
+        printk("ioctl_param is NULL\n");
+        return -1;
+    }
+
     printk("BENCH ARGS RECEIVED:\n");
     printk("loops: %d, tp_size: %d\n", benchmod_arg->loop,
            benchmod_arg->tp_size);
