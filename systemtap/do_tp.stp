@@ -1,0 +1,5 @@
+probe module("benchmod").function("tp_4b") {
+  now_time = gettimeofday_ns()
+  (block) now_time
+//  print(now_time, "\n")
+}

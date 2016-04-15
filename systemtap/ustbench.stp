@@ -1,5 +1,5 @@
-probe process("/home/mogeb/git/benchtrace/ustbench/bin/ustbench").function("do_lttng_ust_tp") {
+probe process("/home/mogeb/git/benchtrace/ustbench/bin/ustbench").function("do_none_tp") {
   a = gettimeofday_ns()
   (block) a
-  print("TP probe", a, "\n")
+//  print("TP probe", a, "\n")
 }
