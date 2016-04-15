@@ -15,7 +15,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 tracers_colors = { 'none': 'r', 'lttng': 'b', 'ftrace': 'y', 'perf': 'm',
                    'kprobe': 'lightskyblue', 'jprobe': 'teal', 'ebpf': 'darksalmon',
-                   'lttng-kprobe': 'cadetblue'}
+                   'lttng-kprobe': 'cadetblue', 'systemtap': 'black'}
 
 
 def init(args = None):
@@ -39,19 +39,25 @@ def do_work(tracer, tracer_name, args = None):
             for i in nprocesses:
                 args['tp_size'] = tp_size_str
                 tracer.start_tracing('session-test', args)
+                workload_bin = '/home/mogeb/git/benchtrace/all-calls/bin/allcalls'
+
                 if tracer_name == 'perf':
                     perf_bin = '/home/mogeb/src/linux-4.5/tools/perf/perf'
-                    call(perf_bin + " record -e 'empty_tp:empty_ioctl_" + tp_size_str +
-                         "b' /home/mogeb/git/benchtrace/all-calls/bin/allcalls " +
+                    call(perf_bin + " record -e 'empty_tp:empty_ioctl_" + tp_size_str + "b' " +
+                         workload_bin +
                          " -t" + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name +
                          ".out" + " -s " + tp_size, shell=True)
                 elif tracer_name == 'ebpf':
                     call("python2 /home/mogeb/git/benchtrace/ebpf-kernel/ebpf-empty-tp.py -n %s -p %s" %\
                          (loops, str(i)), shell=True)
+                elif tracer_name == 'systemtap':
+                    call('/home/mogeb/git/systemtap/stap /home/mogeb/git/benchtrace/systemtap/do_tp.stp'
+                         ' -c "%s -n %s -p %s"' % (workload_bin, loops, str(i)), shell=True)
                 else:
-                    call("/home/mogeb/git/benchtrace/all-calls/bin/allcalls -t "
-                         + tracer_name + " -n " + loops + " -p " + str(i) + " -o " + tracer_name +
-                         ".out" + " -s " + tp_size, shell=True)
+                    call(workload_bin + ' -t '
+                         + tracer_name + ' -n ' + loops + ' -p ' + str(i) + ' -o ' + tracer_name +
+                         '.out' + ' -s ' + tp_size, shell=True)
+
                 tracer.stop_tracing('session-test')
                 shutil.copyfile('/tmp/out.csv', tracer_name + '_' + tp_size + 'bytes_' + buf_size_kb
                                 + 'kbsubbuf_' + str(i) + '_process.hist')

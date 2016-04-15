@@ -5,8 +5,8 @@ from collections import defaultdict
 from matplotlib.font_manager import FontProperties
 
 
-tracers_colors = { 'none': 'r', 'lttng-ust': 'b', 'ftrace': 'y', 'perf': 'm',
-                   'stap-ust': 'black', 'jprobe': 'teal' }
+tracers_colors = { 'none': 'r', 'lttng-ust': 'b', 'ftrace': 'y', 'lw-ust': 'm',
+                   'stap-ust': 'black', 'stdout': 'darksalmon' }
 
 
 def init(args = None):
@@ -30,16 +30,19 @@ def do_work(tracer, tracer_name, args = None):
             for i in nprocesses:
                 args['tp_size'] = tp_size_str
                 tracer.start_tracing('session-test', args)
+                ust_bin = '/home/mogeb/git/benchtrace/ustbench/bin/ustbench'
+
                 if tracer_name == 'stap-ust':
-                    ust_dir = '/home/mogeb/git/benchtrace/ustbench'
-                    cmd = 'stap ' + ust_dir + '/ustbench.stp -c "' + ust_dir + '/ustbench' + ' -n ' + loops + ' -p ' + str(i) +'"'
+                    cmd = '/home/mogeb/git/systemtap/stap /home/mogeb/git/benchtrace/systemtap/ustbench.stp'\
+                          ' -c "%s -n %s -p %s -t none"' % (ust_bin, loops, str(i))
                 else:
-                    cmd = '/home/mogeb/git/benchtrace/ustbench/ustbench ' + " -n " + loops + " -p " + str(i)
+                    cmd = '%s -n %s -p %s -t %s' % (ust_bin, loops, str(i), tracer_name)
+
                 print(cmd)
                 call(cmd, shell=True)
                 tracer.stop_tracing('session-test')
                 shutil.copyfile('/tmp/out.csv', tracer_name + '_' + tp_size + 'bytes_' + buf_size_kb
-                                + 'kbsubbuf_' + i + '_process.hist')
+                                + 'kbsubbuf_' + str(i) + '_process.hist')
 
 
 def cleanup(args = None):
@@ -48,8 +51,9 @@ def cleanup(args = None):
 
 def compile_results(args):
     compile_scatter_plot(args)
-    compile_scatter_plot_nthreads(args)
-    compile_percentiles_nthreads(args)
+    compile_scatter_plot_CPI(args)
+    # compile_scatter_plot_nthreads(args)
+    # compile_percentiles_nthreads(args)
 
 
 def compile_scatter_plot(args):
@@ -191,3 +195,56 @@ def compile_percentiles_nthreads(args):
             plt.legend(prop=fontP, loc='upper left')
             plt.show()
             # plt.savefig(imgname + '.png', dpi=100)
+
+
+def compile_scatter_plot_CPI(args):
+    tp_size = args['tp_sizes'][0]
+    tracers = args['tracers']
+    res_dir = '/home/mogeb/git/benchtrace/trace-client/'
+    buf_sizes_kb = args['buf_sizes_kb']
+    nprocesses = args['nprocesses']
+    values = defaultdict(list)
+    cpi = defaultdict(list)
+    ipc = defaultdict(list)
+    handles = defaultdict(list)
+
+    fname = tracers[0] + '_' + str(tp_size) + 'bytes_' + buf_sizes_kb[0]\
+                            + 'kbsubbuf_' + nprocesses[0] + '_process.hist'
+    with open(fname, 'r') as f:
+        legend = f.readline()
+    legend = legend.split(',')
+    i = 0
+    for tracer in tracers:
+        fname = res_dir + tracer + '_' + str(tp_size) + 'bytes_' + buf_sizes_kb[0]\
+                            + 'kbsubbuf_' + nprocesses[0] + '_process.hist'
+        values[tracer] = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=int)
+
+    fontP = FontProperties()
+    fontP.set_size('small')
+
+    for tracer in tracers:
+        for i in range(0, len(values[tracer])):
+            ipc[tracer].append(values[tracer]['Instructions'][i] / values[tracer]['CPU_cycles'][i])
+            cpi[tracer].append(values[tracer]['CPU_cycles'][i] / values[tracer]['Instructions'][i])
+
+    plt.subplot(2, 1, 0)
+    plt.title('Latency according to CPI')
+    plt.xlabel('CPI')
+    plt.ylabel('Latency in ns')
+    plt.legend(prop=fontP)
+    for tracer in tracers:
+        plt.scatter(cpi[tracer], values[tracer]['latency'], color=tracers_colors[tracer], alpha=0.3,
+                    label=tracer)
+    plt.legend(prop=fontP)
+
+    plt.subplot(2, 1, 1)
+    plt.title('Latency according to IPC')
+    plt.xlabel('IPC')
+    plt.ylabel('Latency in ns')
+    plt.legend(prop=fontP)
+    for tracer in tracers:
+        plt.scatter(ipc[tracer], values[tracer]['latency'], color=tracers_colors[tracer], alpha=0.3,
+                    label=tracer)
+
+    plt.legend(prop=fontP)
+    plt.show()
