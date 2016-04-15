@@ -9,6 +9,9 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "lightweight-ust.h"
 #include "ustbench.h"
@@ -51,19 +54,19 @@ void output_measurements()
     fclose(outfile);
 }
 
-void do_lttng_ust_tp(size_t size)
+static inline void do_lttng_ust_tp(size_t size)
 {
     tracepoint(TRACEPOINT_PROVIDER, bench_tp_4b, 0);
 }
 
-void do_lightweight_ust_tp(size_t size)
+static inline void do_lightweight_ust_tp(size_t size)
 {
     int i = 0;
 
     trace_record_write(&i, sizeof(i));
 }
 
-void do_stderr_tp(size_t size)
+static inline void do_stderr_tp(size_t size)
 {
     int i = 0;
     struct timespec ts;
@@ -71,6 +74,10 @@ void do_stderr_tp(size_t size)
     clock_gettime(CLOCK_MONOTONIC, &ts);
 
     fprintf(stdout, "__%lu %lu %d", ts.tv_sec, ts.tv_nsec, i);
+}
+
+static inline void do_none_tp(size_t size)
+{
 }
 
 void perf_init()
@@ -93,6 +100,9 @@ void perf_init()
     attr1.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
     strncat(metric1, "L1_misses", METRIC_LEN);
 
+    /**
+      WARNING: LLC MISSES CRASHES!!!
+    **/
     /*
     attr2.size = sizeof(struct perf_event_attr);
     attr2.pinned = 1;
@@ -103,6 +113,9 @@ void perf_init()
                PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
     strncat(metric2, "LLC_misses", METRIC_LEN);
     */
+    /**
+      WARNING: LLC MISSES CRASHES!!!
+    **/
 
     /* attr2 = cache misses */
     attr2.size = sizeof(struct perf_event_attr);
@@ -113,16 +126,13 @@ void perf_init()
     attr2.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
     strncat(metric2, "Cache_misses", METRIC_LEN);
 
-    /* attr4 = dTLB-load-misses */
     attr3.size = sizeof(struct perf_event_attr);
     attr3.pinned = 1;
     attr3.disabled = 0;
-    attr3.type = PERF_TYPE_HW_CACHE;
-    attr3.config = PERF_COUNT_HW_CACHE_DTLB | \
-               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
-               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+    attr3.type = PERF_TYPE_HARDWARE;
+    attr3.config = PERF_COUNT_HW_CPU_CYCLES;
     attr3.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
-    strncat(metric3, "TLB_misses", METRIC_LEN);
+    strncat(metric3, "CPU_cycles", METRIC_LEN);
 
     attr4.size = sizeof(struct perf_event_attr);
     attr4.pinned = 1;
@@ -131,6 +141,43 @@ void perf_init()
     attr4.config = PERF_COUNT_HW_INSTRUCTIONS;
     attr4.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
     strncat(metric4, "Instructions", METRIC_LEN);
+
+
+    /* attr4 = dTLB-load-misses */
+//    attr1.size = sizeof(struct perf_event_attr);
+//    attr1.pinned = 1;
+//    attr1.disabled = 0;
+//    attr1.type = PERF_TYPE_HW_CACHE;
+//    attr1.config = PERF_COUNT_HW_CACHE_DTLB | \
+//               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
+//               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+//    attr1.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
+//    strncat(metric1, "TLB_misses", METRIC_LEN);
+
+//    attr2.size = sizeof(struct perf_event_attr);
+//    attr2.pinned = 1;
+//    attr2.disabled = 0;
+//    attr2.type = PERF_TYPE_HARDWARE;
+//    attr2.config = PERF_COUNT_HW_BUS_CYCLES;
+//    attr2.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
+//    strncat(metric2, "Bus_cycles", METRIC_LEN);
+
+//    attr3.size = sizeof(struct perf_event_attr);
+//    attr3.pinned = 1;
+//    attr3.disabled = 0;
+//    attr3.type = PERF_TYPE_HARDWARE;
+//    attr3.config = PERF_COUNT_HW_BRANCH_MISSES;
+//    attr3.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
+//    strncat(metric3, "Branch_misses", METRIC_LEN);
+
+//    attr4.size = sizeof(struct perf_event_attr);
+//    attr4.pinned = 1;
+//    attr4.disabled = 0;
+//    attr4.type = PERF_TYPE_HARDWARE;
+//    attr4.config = PERF_COUNT_HW_BRANCH_INSTRUCTIONS;
+//    attr4.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
+//    strncat(metric4, "Branch_instructions", METRIC_LEN);
+
 }
 
 static inline pid_t gettid()
@@ -272,7 +319,7 @@ void *do_work(void *a)
 
 int main(int argc, char **argv)
 {
-    int i;
+    int i, fd;
     struct worker_thread_args *worker_args;
     int ncpus = sysconf(_SC_NPROCESSORS_ONLN);
     pthread_t *threads;
@@ -290,10 +337,20 @@ int main(int argc, char **argv)
     perf_init();
 
     if(strcmp(popt_args.tracer, "lw-ust") == 0) {
+        printf("Setting tracer lw-ust\n");
         do_tp = do_lightweight_ust_tp;
     } else if (strcmp(popt_args.tracer, "stdout") == 0) {
+        printf("Setting tracer stdout\n");
+
+        fd = open("/dev/null", O_WRONLY);
+        dup2(fd, 1);
         do_tp = do_stderr_tp;
+        close(fd);
+    } else if (strcmp(popt_args.tracer, "none") == 0) {
+        printf("Setting tracer none\n");
+        do_tp = do_none_tp;
     } else {
+        printf("Setting tracer lttng-ust\n");
         do_tp = do_lttng_ust_tp;
     }
 
