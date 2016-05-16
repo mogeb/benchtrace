@@ -20,7 +20,7 @@ ustbench.s: ustbench.c
 tp.o:
 	gcc $(CFLAGS) -I. -c -o tp.o tp.c
 
-lightweight-ust.o:
+lightweight-ust.o: lightweight-ust.c
 	gcc $(CFLAGS) -c -o lightweight-ust.o lightweight-ust.c
 
 $(BINDIR):
