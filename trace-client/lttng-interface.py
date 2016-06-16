@@ -26,14 +26,17 @@ def start_tracing(tracename, args, tracepoints = None):
     else:
         buf_size_str = str(buf_size) + 'k'
 
+    print(args)
     tp_size = args['tp_size']
     num_subbuf = str(args['num_subbuf'])
 
-    cmd = 'lttng create --snapshot ' + tracename + ' -o /home/mogeb/git/benchtrace/trace-client'
+    cmd = 'lttng create --snapshot ' + tracename +\
+          ' -o /home/mogeb/git/benchtrace/trace-client'
     print(cmd)
     call(cmd, shell=True)
 
-    cmd = 'lttng enable-channel chan0 --subbuf-size ' + buf_size_str + ' --num-subbuf '\
+    cmd = 'lttng enable-channel chan0 --subbuf-size ' +\
+          buf_size_str + ' --num-subbuf '\
           + num_subbuf + ' -k'
     print(cmd)
     call(cmd, shell=True)
@@ -43,6 +46,11 @@ def start_tracing(tracename, args, tracepoints = None):
     call(cmd, shell=True)
 
     cmd = 'lttng start'
+    print(cmd)
+    call(cmd, shell=True)
+
+
+def run_command(cmd, args):
     print(cmd)
     call(cmd, shell=True)
 

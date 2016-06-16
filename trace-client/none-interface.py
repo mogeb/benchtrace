@@ -1,11 +1,13 @@
-import os
+from subprocess import call
 
 def start_tracing(tracename, args = None, tracepoints = None):
-    # try:
-    #     os.remove('none.out')
-    # except OSError:
-    #     pass
     return
+
+
+def run_command(cmd, args):
+    print(cmd)
+    call(cmd, shell=True)
+
 
 def stop_tracing(tracename):
     return

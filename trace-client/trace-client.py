@@ -20,7 +20,7 @@ def main(args):
     loop = 1000
     buf_size_kb = 262144
     do_work = False
-    num_sub_buf_kb = 4
+    num_subbuf = 2
     buf_sizes_kb = [131072]
     tp_sizes = [4]
     nprocesses = ['1']
@@ -44,7 +44,7 @@ def main(args):
         elif opt == "--subbuf-size" or opt == "-b":
             buf_sizes_kb = arg.split(",")
         elif opt == "--num-subbuf":
-            num_sub_buf_kb = arg
+            num_subbuf = arg
 
     for i in range(0, len(buf_sizes_kb)):
         if int(buf_sizes_kb[i]) > 262144:
@@ -60,7 +60,7 @@ def main(args):
 
         args = { 'buf_sizes_kb' : buf_sizes_kb, 'tp_sizes': tp_sizes,
                  'nprocesses' : nprocesses, 'loop' : loop, 'tracers': tracer_args,
-                 'num_subbuf': num_sub_buf_kb}
+                 'num_subbuf': num_subbuf}
         if do_work:
             for tracer_arg in tracer_args:
                 try:

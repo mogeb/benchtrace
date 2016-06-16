@@ -6,7 +6,8 @@ from matplotlib.font_manager import FontProperties
 
 
 tracers_colors = { 'none': 'r', 'lttng-ust': 'b', 'ftrace': 'y', 'lw-ust': 'm',
-                   'stap-ust': 'black', 'stdout': 'darksalmon' }
+                   'stap-ust': 'black', 'printf': 'darksalmon',
+                   'lttng-tracef': 'limegreen', 'extrae': 'teal' }
 
 
 def init(args = None):
@@ -32,14 +33,15 @@ def do_work(tracer, tracer_name, args = None):
                 tracer.start_tracing('session-test', args)
                 ust_bin = '/home/mogeb/git/benchtrace/ustbench/bin/ustbench'
 
-                if tracer_name == 'stap-ust':
-                    cmd = '/home/mogeb/git/systemtap/stap /home/mogeb/git/benchtrace/systemtap/ustbench.stp'\
-                          ' -c "%s -n %s -p %s -t none"' % (ust_bin, loops, str(i))
-                else:
-                    cmd = '%s -n %s -p %s -t %s' % (ust_bin, loops, str(i), tracer_name)
+                # if tracer_name == 'stap-ust':
+                #     cmd = '/home/mogeb/git/systemtap/stap /home/mogeb/git/benchtrace/systemtap/ustbench.stp'\
+                #           ' -c "%s -n %s -p %s -t none"' % (ust_bin, loops, str(i))
+                # else:
+                cmd = '%s -n %s -p %s -t %s' % (ust_bin, loops, str(i), tracer_name)
 
                 print(cmd)
-                call(cmd, shell=True)
+                # call(cmd, shell=True)
+                tracer.run_command(cmd, args)
                 tracer.stop_tracing('session-test')
                 shutil.copyfile('/tmp/out.csv', tracer_name + '_' + tp_size + 'bytes_' + buf_size_kb
                                 + 'kbsubbuf_' + str(i) + '_process.hist')
@@ -50,10 +52,52 @@ def cleanup(args = None):
 
 
 def compile_results(args):
+    compile_percentiles(args)
     compile_scatter_plot(args)
-    compile_scatter_plot_CPI(args)
+    # compile_scatter_plot_CPI(args)
     # compile_scatter_plot_nthreads(args)
     # compile_percentiles_nthreads(args)
+
+
+def compile_percentiles(args):
+    res_dir = '/home/mogeb/git/benchtrace/trace-client/'
+    tp_sizes = args['tp_sizes']
+    nprocesses = args['nprocesses']
+    tracers = args['tracers']
+    buf_sizes_kb = args['buf_sizes_kb']
+    perc = 0.90
+
+    for buf_size_kb in buf_sizes_kb:
+        for nprocess in nprocesses:
+            for tracer in tracers:
+                percentiles = []
+                averages_file = open('averages', 'w')
+                for tp_size in tp_sizes:
+                    fname = tracer + '_' + str(tp_size) + 'bytes_' + buf_size_kb\
+                            + 'kbsubbuf_' + nprocess + '_process.hist'
+                    with open(fname, 'r') as f:
+                        legend = f.readline()
+                    legend = legend.split(',')
+                    values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend,
+                        dtype=None, invalid_raise=False)
+                    percentiles.append(np.percentile(values['latency'], perc))
+                    print('[%s] Average = %d' % (tracer, np.average(values['latency'])))
+                    print('[%s] %dth percentile = %d' % (tracer, (perc * 100), np.percentile(values['latency'], perc)))
+                    averages_file.write('[%s] Average = %d\n' % (tracer, np.average(values['latency'])))
+                    averages_file.write('[%s] %dth percentile = %d\n' % (tracer, (perc * 100), np.percentile(values['latency'], perc)))
+                plt.plot(tp_sizes, percentiles, 'o-', label=tracer, color=tracers_colors[tracer])
+                averages_file.close()
+            plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to'
+                                             'payload size')
+            plt.xlabel('Payload size in bytes')
+            plt.ylabel('Time in ns')
+            fontP = FontProperties()
+            fontP.set_size('small')
+
+            # imgname = 'pertp/90th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
+            plt.legend()
+            plt.show()
+            # plt.savefig(imgname + '.png', dpi=100)
 
 
 def compile_scatter_plot(args):
@@ -63,8 +107,8 @@ def compile_scatter_plot(args):
     nprocesses = args['nprocesses']
     res_dir = '/home/mogeb/git/benchtrace/trace-client/'
     values = defaultdict(list)
-    fname = res_dir + 'lttng-ust_' + tp_size + 'bytes_' + buf_sizes_kb[0] + 'kbsubbuf_'\
-            + nprocesses[0] + '_process.hist'
+    fname = res_dir + 'lttng-ust_' + tp_size + 'bytes_' + buf_sizes_kb[0] +\
+            'kbsubbuf_' + nprocesses[0] + '_process.hist'
     print(fname)
     with open(fname, 'r') as f:
         legend = f.readline()
