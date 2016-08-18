@@ -69,9 +69,9 @@ def compile_percentiles(args):
 
     for buf_size_kb in buf_sizes_kb:
         for nprocess in nprocesses:
+            averages_file = open('averages', 'w')
             for tracer in tracers:
                 percentiles = []
-                averages_file = open('averages', 'w')
                 for tp_size in tp_sizes:
                     fname = tracer + '_' + str(tp_size) + 'bytes_' + buf_size_kb\
                             + 'kbsubbuf_' + nprocess + '_process.hist'
@@ -85,8 +85,8 @@ def compile_percentiles(args):
                     print('[%s] %dth percentile = %d' % (tracer, (perc * 100), np.percentile(values['latency'], perc)))
                     averages_file.write('[%s] Average = %d\n' % (tracer, np.average(values['latency'])))
                     averages_file.write('[%s] %dth percentile = %d\n' % (tracer, (perc * 100), np.percentile(values['latency'], perc)))
-                plt.plot(tp_sizes, percentiles, 'o-', label=tracer, color=tracers_colors[tracer])
-                averages_file.close()
+#                plt.plot(tp_sizes, percentiles, 'o-', label=tracer, color=tracers_colors[tracer])
+            averages_file.close()
             plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to'
                                              'payload size')
             plt.xlabel('Payload size in bytes')

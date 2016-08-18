@@ -49,7 +49,7 @@ def cleanup(args = None):
 
 def compile_results(args):
     compile_percentiles(args)
-    compile_scatter_plot(args)
+    # compile_scatter_plot(args)
     # compile_scatter_plot_CPI(args)
     # compile_scatter_plot_nthreads(args)
     # compile_percentiles_nthreads(args)

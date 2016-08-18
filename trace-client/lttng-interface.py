@@ -61,7 +61,6 @@ Disable tracing
 def stop_tracing(tracename):
     call('lttng stop', shell=True)
     call('lttng destroy ' + tracename, shell=True)
-    print('read /proc/benchmod')
 
 
 """

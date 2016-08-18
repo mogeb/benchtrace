@@ -52,7 +52,7 @@ def compile_results(args):
     compile_percentiles(args)
     # compile_percentiles_nthreads(args)
     # compile_histograms(args)
-    # compile_scatter_plot(args)
+    compile_scatter_plot(args)
     # compile_scatter_plot_CPI(args)
     # compile_lttng_subbuf(args)
     return
@@ -141,6 +141,32 @@ def compile_percentiles_nthreads(args):
             plt.legend(prop=fontP, loc='upper left')
             plt.show()
             # plt.savefig(imgname + '.png', dpi=100)
+
+        averages = defaultdict(list)
+        for tracer in tracers:
+            for nprocess in nprocesses:
+                fname = tracer + '_' + str(tp_size) + 'bytes_' + buf_size_kb\
+                        + 'kbsubbuf_' + nprocess + '_process.hist'
+                with open(fname, 'r') as f:
+                    legend = f.readline()
+                legend = legend.split(',')
+                values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None,
+                                       invalid_raise=False)
+                averages[tracer].append(np.average(values['latency']))
+            plt.plot(nprocesses, averages[tracer], 'o-', label=tracer, color=tracers_colors[tracer])
+
+        plt.title('Average of tracepoint latency according to the number'
+                                         'of threads')
+        plt.xlabel('Number of threads')
+        plt.ylabel('Latency in ns')
+        fontP = FontProperties()
+        fontP.set_size('small')
+
+        imgname = 'pertp/' + str(int(perc * 100)) + 'th_' + nprocess + 'proc_' +\
+                  buf_size_kb + 'subbuf_kb'
+        # plt.axis([0, 9, 0, 900])
+        plt.legend(prop=fontP, loc='upper left')
+        plt.show()
 
 
 def compile_scatter_plot_ICL(args):

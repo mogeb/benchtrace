@@ -1,0 +1,15 @@
+[none] 90th percentile: 17
+[none] average: 18
+[lttng-ust] 90th percentile: 218
+[lttng-ust] average: 227
+[stap-ust] 90th percentile: 401
+[stap-ust] average: 405
+[lw-ust] 90th percentile: 63
+[lw-ust] average: 66
+[printf] 90th percentile: 243
+[printf] average: 250
+[extrae] 90th percentile: 118
+[extrae] average: 141
+[lttng-tracef] 90th percentile: 523
+[lttng-tracef] average: 537
+

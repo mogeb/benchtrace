@@ -17,7 +17,8 @@ def start_tracing(tracename, args, tracepoints = None):
 
     num_subbuf = str(args['num_subbuf'])
 
-    cmd = 'lttng create --snapshot ' + tracename + ' -o /home/mogeb/git/benchtrace/trace-client'
+    cmd = 'lttng create --snapshot ' + tracename +\
+          ' -o /home/mogeb/git/benchtrace/trace-client'
     print(cmd)
     call(cmd, shell=True)
 
