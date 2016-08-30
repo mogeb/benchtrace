@@ -1,0 +1,13 @@
+obj-m += dummy_tracer.o
+benchmod-objs := dummy_tracer.o
+ccflags-y += -I$(src)
+
+all:
+	make -C /lib/modules/`uname -r`/build M=$(PWD) SUBDIRS=$(PWD) modules
+
+install:
+	install dummy_tracer.ko /lib/modules/`uname -r`/extra/
+	depmod -a
+
+clean:
+	make -C /lib/modules/`uname -r`/build M=$(PWD) clean
