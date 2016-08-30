@@ -29,7 +29,8 @@
 #define irq_stats(x)            (&per_cpu(irq_stat, x))
 
 #define METRIC_LEN 128
-#define PER_CPU_ALLOC 100000
+//#define PER_CPU_ALLOC 100000
+#define PER_CPU_ALLOC 5000
 struct tracker_measurement_entry {
     u64 pmu1;
     u64 pmu2;
@@ -80,7 +81,6 @@ static struct tracker_measurement_cpu_perf __percpu *tracker_cpu_perf;
         getnstimeofday(&_bench_ts1);
 
 #define BENCH_GET_TS2 if (_bench_nmi == irq_stats(smp_processor_id())->__nmi_count) { \
-        if (_bench_c->pos < PER_CPU_ALLOC) { \
         getnstimeofday(&_bench_ts2); \
         _bench_c->event1->pmu->read(_bench_c->event1); \
         _bench_c->event2->pmu->read(_bench_c->event2); \
@@ -97,8 +97,61 @@ static struct tracker_measurement_cpu_perf __percpu *tracker_cpu_perf;
         _bench_c->entries[_bench_c->pos].pmu3 = _bench_pmu3_2 - _bench_pmu3_1; \
         _bench_c->entries[_bench_c->pos].pmu4 = _bench_pmu4_2 - _bench_pmu4_1; \
         _bench_c->pos++; \
-        } \
+        _bench_c->pos = _bench_c->pos % PER_CPU_ALLOC; \
         }
+
+//#define BENCH_GET_TS2 if (_bench_nmi == irq_stats(smp_processor_id())->__nmi_count) { \
+//        getnstimeofday(&_bench_ts2); \
+//        _bench_c->event1->pmu->read(_bench_c->event1); \
+//        _bench_c->event2->pmu->read(_bench_c->event2); \
+//        _bench_c->event3->pmu->read(_bench_c->event3); \
+//        _bench_c->event4->pmu->read(_bench_c->event4); \
+//        _bench_pmu1_2 = local64_read(&_bench_c->event1->count); \
+//        _bench_pmu2_2 = local64_read(&_bench_c->event2->count); \
+//        _bench_pmu3_2 = local64_read(&_bench_c->event3->count); \
+//        _bench_pmu4_2 = local64_read(&_bench_c->event4->count); \
+//        _bench_diff = do_ts_diff(_bench_ts1, _bench_ts2); \
+//        _bench_c->entries[_bench_c->pos].latency = _bench_diff.tv_sec * BILLION + (unsigned long)_bench_diff.tv_nsec; \
+//        _bench_c->entries[_bench_c->pos].pmu1 = _bench_pmu1_2 - _bench_pmu1_1; \
+//        _bench_c->entries[_bench_c->pos].pmu2 = _bench_pmu2_2 - _bench_pmu2_1; \
+//        _bench_c->entries[_bench_c->pos].pmu3 = _bench_pmu3_2 - _bench_pmu3_1; \
+//        _bench_c->entries[_bench_c->pos].pmu4 = _bench_pmu4_2 - _bench_pmu4_1; \
+//        if(_bench_c->entries[_bench_c->pos].pmu1 > 6) { \
+//            printk("Slow path: position %d. Diff = %d. Ins = %llu\n", _bench_c->pos, _bench_c->pos - lastFaults, _bench_c->entries[_bench_c->pos].pmu4); \
+//            lastFaults = _bench_c->pos; \
+//        } \
+//        if(_bench_c->entries[_bench_c->pos].pmu4 > 900 && _bench_c->entries[_bench_c->pos].pmu4 < 1100) { \
+//            printk("Middle path: position = %d, diff = %llu, ins = %llu\n", _bench_c->pos, _bench_c->pos - lastFaults2, _bench_c->entries[_bench_c->pos].pmu4); \
+//            lastFaults2 = _bench_c->pos; \
+//        } \
+//        _bench_c->pos++; \
+//        if(_bench_c->pos == PER_CPU_ALLOC) { \
+//            printk("Wrap up\n"); \
+//        } \
+//        _bench_c->pos = _bench_c->pos % PER_CPU_ALLOC; \
+//        }
+
+//#define BENCH_GET_TS2 if (_bench_nmi == irq_stats(smp_processor_id())->__nmi_count) { \
+//        if (_bench_c->pos < PER_CPU_ALLOC) { \
+//        getnstimeofday(&_bench_ts2); \
+//        _bench_c->event1->pmu->read(_bench_c->event1); \
+//        _bench_c->event2->pmu->read(_bench_c->event2); \
+//        _bench_c->event3->pmu->read(_bench_c->event3); \
+//        _bench_c->event4->pmu->read(_bench_c->event4); \
+//        _bench_pmu1_2 = local64_read(&_bench_c->event1->count); \
+//        _bench_pmu2_2 = local64_read(&_bench_c->event2->count); \
+//        _bench_pmu3_2 = local64_read(&_bench_c->event3->count); \
+//        _bench_pmu4_2 = local64_read(&_bench_c->event4->count); \
+//        _bench_diff = do_ts_diff(_bench_ts1, _bench_ts2); \
+//        _bench_c->entries[_bench_c->pos].latency = _bench_diff.tv_sec * BILLION + (unsigned long)_bench_diff.tv_nsec; \
+//        _bench_c->entries[_bench_c->pos].pmu1 = _bench_pmu1_2 - _bench_pmu1_1; \
+//        _bench_c->entries[_bench_c->pos].pmu2 = _bench_pmu2_2 - _bench_pmu2_1; \
+//        _bench_c->entries[_bench_c->pos].pmu3 = _bench_pmu3_2 - _bench_pmu3_1; \
+//        _bench_c->entries[_bench_c->pos].pmu4 = _bench_pmu4_2 - _bench_pmu4_1; \
+//        _bench_c->pos++; \
+//        _bench_c->pos = _bench_c->pos % PER_CPU_ALLOC; \
+//        } \
+//        }
 
 #define BENCH_APPEND \
     local_irq_restore(_bench_flags)
@@ -118,17 +171,6 @@ int alloc_measurements(void)
 
     tracker_cpu_perf = alloc_percpu(struct tracker_measurement_cpu_perf);
 
-    /* include/uapi/linux/perf_event.h */
-    /* attr1 = L1-dcache-load-misses */
-    attr1.size = sizeof(struct perf_event_attr);
-    attr1.pinned = 1;
-    attr1.disabled = 0;
-    attr1.type = PERF_TYPE_HW_CACHE;
-    attr1.config = PERF_COUNT_HW_CACHE_L1D | \
-               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
-               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
-    strncat(metric1, "L1_misses", METRIC_LEN);
-
     /**
       WARNING: LLC MISSES CRASHES!!!
     **/
@@ -145,6 +187,17 @@ int alloc_measurements(void)
       WARNING: LLC MISSES CRASHES!!!
     **/
 
+    /* include/uapi/linux/perf_event.h */
+    /* attr1 = L1-dcache-load-misses */
+    attr1.size = sizeof(struct perf_event_attr);
+    attr1.pinned = 1;
+    attr1.disabled = 0;
+    attr1.type = PERF_TYPE_HW_CACHE;
+    attr1.config = PERF_COUNT_HW_CACHE_L1D | \
+               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
+               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+    strncat(metric1, "L1D_misses", METRIC_LEN);
+
     /* attr2 = cache misses */
     attr2.size = sizeof(struct perf_event_attr);
     attr2.pinned = 1;
@@ -153,7 +206,49 @@ int alloc_measurements(void)
     attr2.config = PERF_COUNT_HW_CACHE_MISSES;
     strncat(metric2, "Cache_misses", METRIC_LEN);
 
-    /* attr4 = dTLB-load-misses */
+//    attr3.size = sizeof(struct perf_event_attr);
+//    attr3.pinned = 1;
+//    attr3.disabled = 0;
+//    attr3.type = PERF_TYPE_HARDWARE;
+//    attr3.config = PERF_COUNT_HW_CPU_CYCLES;
+//    strncat(metric3, "CPU_cycles", METRIC_LEN);
+
+    /* attr3 = Branch misses */
+    attr3.size = sizeof(struct perf_event_attr);
+    attr3.pinned = 1;
+    attr3.disabled = 0;
+    attr3.type = PERF_TYPE_HARDWARE;
+    attr3.config = PERF_COUNT_HW_BRANCH_MISSES;
+    strncat(metric3, "Branch_misses", METRIC_LEN);
+
+    attr4.size = sizeof(struct perf_event_attr);
+    attr4.pinned = 1;
+    attr4.disabled = 0;
+    attr4.type = PERF_TYPE_HARDWARE;
+    attr4.config = PERF_COUNT_HW_INSTRUCTIONS;
+    strncat(metric4, "Instructions", METRIC_LEN);
+
+
+    /* attr3 = L1 Data misses */
+//    attr3.size = sizeof(struct perf_event_attr);
+//    attr3.pinned = 1;
+//    attr3.disabled = 0;
+//    attr3.type = PERF_TYPE_HW_CACHE;
+//    attr3.config = PERF_COUNT_HW_CACHE_L1I | \
+//               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
+//               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+//    strncat(metric3, "L1I_misses", METRIC_LEN);
+
+
+//    /* attr1 = Bus cycles */
+//    attr1.size = sizeof(struct perf_event_attr);
+//    attr1.pinned = 1;
+//    attr1.disabled = 0;
+//    attr1.type = PERF_TYPE_HARDWARE;
+//    attr1.config = PERF_COUNT_HW_BUS_CYCLES;
+//    strncat(metric1, "Bus_cycles", METRIC_LEN);
+
+//    /* attr2 = dTLB-load-misses */
 //    attr2.size = sizeof(struct perf_event_attr);
 //    attr2.pinned = 1;
 //    attr2.disabled = 0;
@@ -163,6 +258,7 @@ int alloc_measurements(void)
 //               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
 //    strncat(metric2, "TLB_misses", METRIC_LEN);
 
+//    /* attr3 = Branch misses */
 //    attr3.size = sizeof(struct perf_event_attr);
 //    attr3.pinned = 1;
 //    attr3.disabled = 0;
@@ -170,33 +266,13 @@ int alloc_measurements(void)
 //    attr3.config = PERF_COUNT_HW_BRANCH_MISSES;
 //    strncat(metric3, "Branch_misses", METRIC_LEN);
 
+//    /* attr4 = Branch instructions */
 //    attr4.size = sizeof(struct perf_event_attr);
 //    attr4.pinned = 1;
 //    attr4.disabled = 0;
 //    attr4.type = PERF_TYPE_HARDWARE;
 //    attr4.config = PERF_COUNT_HW_BRANCH_INSTRUCTIONS;
 //    strncat(metric4, "Branch_instructions", METRIC_LEN);
-
-//    attr1.size = sizeof(struct perf_event_attr);
-//    attr1.pinned = 1;
-//    attr1.disabled = 0;
-//    attr1.type = PERF_TYPE_HARDWARE;
-//    attr1.config = PERF_COUNT_HW_BUS_CYCLES;
-//    strncat(metric1, "Bus_cycles", METRIC_LEN);
-
-    attr3.size = sizeof(struct perf_event_attr);
-    attr3.pinned = 1;
-    attr3.disabled = 0;
-    attr3.type = PERF_TYPE_HARDWARE;
-    attr3.config = PERF_COUNT_HW_CPU_CYCLES;
-    strncat(metric3, "CPU_cycles", METRIC_LEN);
-
-    attr4.size = sizeof(struct perf_event_attr);
-    attr4.pinned = 1;
-    attr4.disabled = 0;
-    attr4.type = PERF_TYPE_HARDWARE;
-    attr4.config = PERF_COUNT_HW_INSTRUCTIONS;
-    strncat(metric4, "Instructions", METRIC_LEN);
 
 //    attr1.size = sizeof(struct perf_event_attr);
 //    attr1.pinned = 1;
@@ -215,6 +291,7 @@ int alloc_measurements(void)
 //    attr3.disabled = 0;
 //    attr3.type = PERF_TYPE_SOFTWARE;
 //    attr3.config = PERF_COUNT_SW_PAGE_FAULTS_MIN;
+//    strncat(metric3, "Page_faults", METRIC_LEN);
 
 
     for_each_online_cpu(cpu) {

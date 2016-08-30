@@ -20,6 +20,7 @@
 
 #define IOCTL_BENCHMARK _IO(BENCHMARK_MAGIC, 0)
 #define IOCTL_READ_RES  _IOR(BENCHMARK_MAGIC, 1, struct timspec*)
+#define IOCTL_EMPTY_CALL _IO(BENCHMARK_MAGIC, 2)
 #define BILLION 1000000000
 
 /*
@@ -218,6 +219,9 @@ long benchmod_ioctl(
         unsigned int ioctl_num,/* The number of the ioctl */
         unsigned long ioctl_param) /* The parameter to it */
 {
+    if(ioctl_num == IOCTL_EMPTY_CALL) {
+        return;
+    }
     int ret = 0;
     struct benchmod_arg *benchmod_arg;
     benchmod_arg = (struct benchmod_arg*) ioctl_param;
