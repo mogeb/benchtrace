@@ -3,19 +3,6 @@
 
 #include <popt.h>
 
-struct measurement_entry {
-    unsigned long pmu1;
-    unsigned long pmu2;
-    unsigned long pmu3;
-    unsigned long pmu4;
-    unsigned long latency;
-};
-
-struct measurement_cpu_perf {
-    struct measurement_entry *entries;
-    unsigned int pos;
-};
-
 struct popt_args {
     int nthreads;
     int loops;
