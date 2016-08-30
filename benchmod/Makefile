@@ -1,6 +1,5 @@
 obj-m += benchmod.o
-benchmod-objs := benchmod_src.o
-ccflags-y += -I$(src)
+ccflags-y += -I$(src) -I$(src)/../utils
 
 all:
 	make -C /lib/modules/`uname -r`/build M=$(PWD) SUBDIRS=$(PWD) modules

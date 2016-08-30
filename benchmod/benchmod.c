@@ -1,5 +1,5 @@
-#include <linux/kernel.h>	/* We're doing kernel work */
-#include <linux/module.h>	/* Specifically, a module */
+#include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/slab.h>
 #include <linux/ioctl.h>
@@ -9,27 +9,12 @@
 
 #include "benchmod.h"
 #include "measure.h"
+#include "utils.h"
+#include "benchmod_utils.h"
 
 #define CREATE_TRACE_POINTS
 #include "empty_tp.h"
 
-#define PROC_ENTRY_NAME "benchmod"
-#define CPUS 8
-
-#define BENCHMARK_MAGIC 'm'
-
-#define IOCTL_BENCHMARK _IO(BENCHMARK_MAGIC, 0)
-#define IOCTL_READ_RES  _IOR(BENCHMARK_MAGIC, 1, struct timspec*)
-#define IOCTL_EMPTY_CALL _IO(BENCHMARK_MAGIC, 2)
-#define BILLION 1000000000
-
-/*
- * 50 buckets, each bucket is a interval of 20 ns. With 50 buckets and a
- * granularity of 20ns, the histogram can cover values ranging between 0 and 1
- * microsecond.
- */
-int hist_granularity_ns = 5;
-ssize_t *sizes;
 char zero_8b[8] = { 0 };
 char zero_16b[16] = { 0 };
 char zero_32b[32] = { 0 };
@@ -38,31 +23,6 @@ char zero_128b[128] = { 0 };
 char zero_192b[192] = { 0 };
 char zero_256b[256] = { 0 };
 void (*do_tp)(void);
-int print = 0;
-
-struct timespec do_ts_diff(struct timespec start, struct timespec end)
-{
-    struct timespec temp;
-    if ((end.tv_nsec - start.tv_nsec) < 0) {
-        temp.tv_sec = end.tv_sec - start.tv_sec - 1;
-        temp.tv_nsec = 1000000000 + end.tv_nsec-start.tv_nsec;
-    } else {
-        temp.tv_sec = end.tv_sec - start.tv_sec;
-        temp.tv_nsec = end.tv_nsec - start.tv_nsec;
-    }
-    return temp;
-}
-
-struct timespec do_ts_add(struct timespec t1, struct timespec t2)
-{
-    long sec = t2.tv_sec + t1.tv_sec;
-    long nsec = t2.tv_nsec + t1.tv_nsec;
-    if (nsec >= BILLION) {
-        nsec -= BILLION;
-        sec++;
-    }
-    return (struct timespec){ .tv_sec = sec, .tv_nsec = nsec };
-}
 
 void tp_4b(void)
 {
@@ -209,7 +169,6 @@ int start_benchmark(struct benchmod_arg arg)
         BENCH_GET_TS2;
     }
     BENCH_APPEND;
-    print = 1;
 
     return ret;
 }
@@ -219,11 +178,13 @@ long benchmod_ioctl(
         unsigned int ioctl_num,/* The number of the ioctl */
         unsigned long ioctl_param) /* The parameter to it */
 {
-    if(ioctl_num == IOCTL_EMPTY_CALL) {
-        return;
-    }
     int ret = 0;
     struct benchmod_arg *benchmod_arg;
+
+    if(ioctl_num == IOCTL_EMPTY_CALL) {
+        return 0;
+    }
+
     benchmod_arg = (struct benchmod_arg*) ioctl_param;
 
     if(!ioctl_param) {
