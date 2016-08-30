@@ -20,6 +20,28 @@ TRACEPOINT_EVENT(
     )
 )
 
+TRACEPOINT_EVENT(
+    ustbench,
+    bench_tp_512b,
+    TP_ARGS(
+        int, values
+    ),
+    TP_FIELDS(
+        ctf_array(int, arrfield1, values, 128)
+    )
+)
+
+TRACEPOINT_EVENT(
+    ustbench,
+    bench_tp_1kb,
+    TP_ARGS(
+        int, values
+    ),
+    TP_FIELDS(
+        ctf_array(int, arrfield1, values, 256)
+    )
+)
+
 #endif /* _TP_H */
 
 #include <lttng/tracepoint-event.h>

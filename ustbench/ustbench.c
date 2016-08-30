@@ -16,17 +16,25 @@
 #include "lightweight-ust.h"
 #include "ustbench.h"
 
-#define NCPUS 8
 #define METRIC_LEN 128
-#define PER_CPU_ALLOC 100000
+#define PER_CPU_ALLOC 5000
 #define MIN(a, b) (a) < (b) ? (a) : (b)
+
+#define BENCHMARK_MAGIC 'm'
+
+#define IOCTL_BENCHMARK _IO(BENCHMARK_MAGIC, 0)
+#define IOCTL_READ_RES  _IOR(BENCHMARK_MAGIC, 1, struct timspec*)
+#define IOCTL_EMPTY_CALL _IO(BENCHMARK_MAGIC, 2)
 
 #define TRACEPOINT_DEFINE
 #include "tp.h"
+#include <lttng/tracef.h>
 
 struct perf_event_attr attr1, attr2, attr3, attr4;
-struct measurement_cpu_perf cpu_perf[NCPUS];
+struct measurement_cpu_perf *cpu_perf;
 void (*do_tp)(size_t size);
+static int nCpus;
+char *open_filename;
 
 char metric1[METRIC_LEN];
 char metric2[METRIC_LEN];
@@ -41,7 +49,7 @@ void output_measurements()
     outfile = fopen("/tmp/out.csv", "w+");
     fprintf(outfile, "latency,%s,%s,%s,%s\n", metric1, metric2, metric3,
             metric4);
-    for(cpu = 0; cpu < NCPUS; cpu++) {
+    for(cpu = 0; cpu < nCpus; cpu++) {
         for(i = 0; i < cpu_perf[cpu].pos; i++) {
             fprintf(outfile, "%lu,%lu,%lu,%lu,%lu\n",
                     cpu_perf[cpu].entries[i].latency,
@@ -54,9 +62,21 @@ void output_measurements()
     fclose(outfile);
 }
 
+int values[128] = { 0 };
+
 static inline void do_lttng_ust_tp(size_t size)
 {
     tracepoint(TRACEPOINT_PROVIDER, bench_tp_4b, 0);
+//    tracepoint(TRACEPOINT_PROVIDER, bench_tp_1kb, values);
+}
+
+static inline void do_tracef(size_t size)
+{
+    int i = 0;
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    tracef("__%lu %lu %d", ts.tv_sec, ts.tv_nsec, i);
 }
 
 static inline void do_lightweight_ust_tp(size_t size)
@@ -66,13 +86,12 @@ static inline void do_lightweight_ust_tp(size_t size)
     trace_record_write(&i, sizeof(i));
 }
 
-static inline void do_stderr_tp(size_t size)
+static inline void do_printf_tp(size_t size)
 {
     int i = 0;
     struct timespec ts;
 
     clock_gettime(CLOCK_MONOTONIC, &ts);
-
     fprintf(stdout, "__%lu %lu %d", ts.tv_sec, ts.tv_nsec, i);
 }
 
@@ -80,11 +99,23 @@ static inline void do_none_tp(size_t size)
 {
 }
 
+static inline void do_empty_syscall(size_t fd)
+{
+    ioctl(fd, IOCTL_EMPTY_CALL);
+//    open("/proc/benchmod", O_RDONLY);
+//    open("/tmp/5", O_RDONLY);
+}
+
+static inline void do_open(size_t fd)
+{
+    open(open_filename, O_RDONLY);
+}
+
 void perf_init()
 {
     int i;
 
-    for(i = 0; i < NCPUS; i++) {
+    for(i = 0; i < nCpus; i++) {
         cpu_perf[i].entries = (struct measurement_entry*) malloc(PER_CPU_ALLOC *
                     sizeof(struct measurement_entry));
         cpu_perf[i].pos = 0;
@@ -98,7 +129,40 @@ void perf_init()
                PERF_COUNT_HW_CACHE_OP_READ << 8 | \
                PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
     attr1.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
-    strncat(metric1, "L1_misses", METRIC_LEN);
+    strncat(metric1, "L1D_misses", METRIC_LEN);
+
+    /* attr2 = cache misses */
+    attr2.size = sizeof(struct perf_event_attr);
+    attr2.pinned = 1;
+    attr2.disabled = 0;
+    attr2.type = PERF_TYPE_HARDWARE;
+    attr2.config = PERF_COUNT_HW_CACHE_MISSES;
+    attr2.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
+    strncat(metric2, "Cache_misses", METRIC_LEN);
+
+    attr3.size = sizeof(struct perf_event_attr);
+    attr3.pinned = 1;
+    attr3.disabled = 0;
+    attr3.type = PERF_TYPE_HW_CACHE;
+    attr3.config = PERF_COUNT_HW_CACHE_L1I | \
+               PERF_COUNT_HW_CACHE_OP_READ << 8 | \
+               PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
+    strncat(metric3, "L1I_misses", METRIC_LEN);
+//    attr3.size = sizeof(struct perf_event_attr);
+//    attr3.pinned = 1;
+//    attr3.disabled = 0;
+//    attr3.type = PERF_TYPE_HARDWARE;
+//    attr3.config = PERF_COUNT_HW_CPU_CYCLES;
+//    attr3.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
+//    strncat(metric3, "CPU_cycles", METRIC_LEN);
+
+    attr4.size = sizeof(struct perf_event_attr);
+    attr4.pinned = 1;
+    attr4.disabled = 0;
+    attr4.type = PERF_TYPE_HARDWARE;
+    attr4.config = PERF_COUNT_HW_INSTRUCTIONS;
+    attr4.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
+    strncat(metric4, "Instructions", METRIC_LEN);
 
     /**
       WARNING: LLC MISSES CRASHES!!!
@@ -116,31 +180,6 @@ void perf_init()
     /**
       WARNING: LLC MISSES CRASHES!!!
     **/
-
-    /* attr2 = cache misses */
-    attr2.size = sizeof(struct perf_event_attr);
-    attr2.pinned = 1;
-    attr2.disabled = 0;
-    attr2.type = PERF_TYPE_HARDWARE;
-    attr2.config = PERF_COUNT_HW_CACHE_MISSES;
-    attr2.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
-    strncat(metric2, "Cache_misses", METRIC_LEN);
-
-    attr3.size = sizeof(struct perf_event_attr);
-    attr3.pinned = 1;
-    attr3.disabled = 0;
-    attr3.type = PERF_TYPE_HARDWARE;
-    attr3.config = PERF_COUNT_HW_CPU_CYCLES;
-    attr3.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
-    strncat(metric3, "CPU_cycles", METRIC_LEN);
-
-    attr4.size = sizeof(struct perf_event_attr);
-    attr4.pinned = 1;
-    attr4.disabled = 0;
-    attr4.type = PERF_TYPE_HARDWARE;
-    attr4.config = PERF_COUNT_HW_INSTRUCTIONS;
-    attr4.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
-    strncat(metric4, "Instructions", METRIC_LEN);
 
 
     /* attr4 = dTLB-load-misses */
@@ -177,7 +216,6 @@ void perf_init()
 //    attr4.config = PERF_COUNT_HW_BRANCH_INSTRUCTIONS;
 //    attr4.read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
 //    strncat(metric4, "Branch_instructions", METRIC_LEN);
-
 }
 
 static inline pid_t gettid()
@@ -266,9 +304,14 @@ void *do_work(void *a)
     struct timespec ts_start, ts_end, ts_diff;
     struct perf_event_mmap_page *perf_mmap1, *perf_mmap2, *perf_mmap3,
             *perf_mmap4;
+    int fd = 4; // for tracers other than syscall
 
-    printf("loops = %d\n", args->loops);
-    printf("cpu = %d\n", cpu);
+    if(strcmp(popt_args.tracer, "syscall") == 0) {
+        fd = open("/proc/benchmod", O_RDONLY);
+        if(fd == -1) {
+            printf("Error opening /proc/benchmod\n");
+        }
+    }
 
     perf_mmap1 = setup_perf(&attr1);
     if(!perf_mmap1) {
@@ -287,16 +330,16 @@ void *do_work(void *a)
         printf("Couldn't allocate perf_mmap4\n");
     }
 
-    min = MIN(args->loops, PER_CPU_ALLOC);
     printf("min = %d\n", min);
-    for(i = 0; i < min; i++) {
+    for(i = 0; i < args->loops; i++) {
+        int pos = cpu_perf[cpu].pos;
         pmu1_start = mmap_read_self(perf_mmap1);
         pmu2_start = mmap_read_self(perf_mmap2);
         pmu3_start = mmap_read_self(perf_mmap3);
         pmu4_start = mmap_read_self(perf_mmap4);
 
         clock_gettime(CLOCK_MONOTONIC, &ts_start);
-        do_tp(4);
+        do_tp(fd);
         clock_gettime(CLOCK_MONOTONIC, &ts_end);
 
         pmu4_end = mmap_read_self(perf_mmap4);
@@ -305,13 +348,18 @@ void *do_work(void *a)
         pmu3_end = mmap_read_self(perf_mmap3);
 
         ts_diff = do_ts_diff(ts_start, ts_end);
-        cpu_perf[cpu].entries[i].pmu1 = pmu1_end - pmu1_start;
-        cpu_perf[cpu].entries[i].pmu2 = pmu2_end - pmu2_start;
-        cpu_perf[cpu].entries[i].pmu3 = pmu3_end - pmu3_start;
-        cpu_perf[cpu].entries[i].pmu4 = pmu4_end - pmu4_start;
-        cpu_perf[cpu].entries[i].latency = ts_diff.tv_sec * 1000000000 +
+        cpu_perf[cpu].entries[pos].pmu1 = pmu1_end - pmu1_start;
+        cpu_perf[cpu].entries[pos].pmu2 = pmu2_end - pmu2_start;
+        cpu_perf[cpu].entries[pos].pmu3 = pmu3_end - pmu3_start;
+        cpu_perf[cpu].entries[pos].pmu4 = pmu4_end - pmu4_start;
+        cpu_perf[cpu].entries[pos].latency = ts_diff.tv_sec * 1000000000 +
                 ts_diff.tv_nsec;
         cpu_perf[cpu].pos++;
+        cpu_perf[cpu].pos = cpu_perf[cpu].pos % PER_CPU_ALLOC;
+    }
+
+    if(strcmp(popt_args.tracer, "syscall") == 0) {
+        close(fd);
     }
 
     return 0;
@@ -321,7 +369,7 @@ int main(int argc, char **argv)
 {
     int i, fd;
     struct worker_thread_args *worker_args;
-    int ncpus = sysconf(_SC_NPROCESSORS_ONLN);
+    nCpus = sysconf(_SC_NPROCESSORS_ONLN);
     pthread_t *threads;
     poptContext pc;
 
@@ -334,21 +382,37 @@ int main(int argc, char **argv)
     worker_args = (struct worker_thread_args*)
             malloc(popt_args.nthreads * sizeof(struct worker_thread_args));
 
+    /* allocate cpu_perf before calling perf_init() */
+    cpu_perf = malloc(nCpus * sizeof(struct measurement_cpu_perf));
     perf_init();
 
     if(strcmp(popt_args.tracer, "lw-ust") == 0) {
         printf("Setting tracer lw-ust\n");
         do_tp = do_lightweight_ust_tp;
-    } else if (strcmp(popt_args.tracer, "stdout") == 0) {
-        printf("Setting tracer stdout\n");
+    } else if (strcmp(popt_args.tracer, "printf") == 0) {
+        printf("Setting tracer printf\n");
 
         fd = open("/dev/null", O_WRONLY);
         dup2(fd, 1);
-        do_tp = do_stderr_tp;
+        do_tp = do_printf_tp;
         close(fd);
-    } else if (strcmp(popt_args.tracer, "none") == 0) {
+    } else if (strcmp(popt_args.tracer, "none") == 0 ||
+               strcmp(popt_args.tracer, "stap-ust") == 0) {
         printf("Setting tracer none\n");
         do_tp = do_none_tp;
+    } else if(strcmp(popt_args.tracer, "syscall") == 0) {
+        printf("Setting tracer syscall\n");
+        do_tp = do_empty_syscall;
+    } else if(strcmp(popt_args.tracer, "open") == 0) {
+        printf("Setting tracer open\n");
+        int len = popt_args.len;
+        open_filename = malloc(len);
+        strncpy(open_filename,
+                "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", len);
+        do_tp = do_open;
+    } else if(strcmp(popt_args.tracer, "lttng-tracef") == 0) {
+        printf("Setting tracer tracef\n");
+        do_tp = do_tracef;
     } else {
         printf("Setting tracer lttng-ust\n");
         do_tp = do_lttng_ust_tp;
@@ -356,13 +420,14 @@ int main(int argc, char **argv)
 
     for(i = 0; i < popt_args.nthreads; i++) {
         worker_args[i].id = i;
-        worker_args[i].loops = popt_args.loops / popt_args.nthreads;
+//        worker_args[i].loops = popt_args.loops / popt_args.nthreads;
+        worker_args[i].loops = popt_args.loops;
         printf("nthreads = %d\n", popt_args.nthreads);
         /* Set CPU affinity for each thread*/
         cpu_set_t cpu_set;
         pthread_attr_t attr;
         CPU_ZERO(&cpu_set);
-        CPU_SET(i % ncpus, &cpu_set);
+        CPU_SET(i % nCpus, &cpu_set);
         pthread_attr_init(&attr);
         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set), &cpu_set);
         printf("loops = %d\n", worker_args->loops);

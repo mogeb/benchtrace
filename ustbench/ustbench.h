@@ -20,6 +20,7 @@ struct popt_args {
     int nthreads;
     int loops;
     char *tracer;
+    int len;
 };
 
 struct worker_thread_args {
@@ -45,6 +46,11 @@ struct poptOption options[] = {
         "tracer", 't',
         POPT_ARG_STRING | POPT_ARGFLAG_OPTIONAL,
         &popt_args.tracer, 0, "tracer"
+    },
+    {
+        "len", 'l',
+        POPT_ARG_INT | POPT_ARGFLAG_OPTIONAL,
+        &popt_args.len, 0, "len"
     },
     POPT_AUTOHELP
 };

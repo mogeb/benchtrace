@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#define NCPUS 8
+#define NCPUS 4
 
 enum {
     TRACE_BUF_LEN = 4096 * 64,
@@ -27,12 +27,11 @@ static unsigned int write_to_buffer(int cpu, void *dataptr, size_t size)
 
     idx = &trace[cpu].idx;
 
-    while (x < size) {
-        if (*idx >= TRACE_BUF_LEN) {
-            *idx = *idx % TRACE_BUF_LEN;
-        }
-        trace[cpu].trace_buf[(*idx)++] = data_ptr[x++];
+    if (*idx >= TRACE_BUF_LEN) {
+        *idx = *idx % TRACE_BUF_LEN;
     }
+    trace[cpu].trace_buf[(*idx)++] = data_ptr[x++];
+
     return *idx;
 }
 
