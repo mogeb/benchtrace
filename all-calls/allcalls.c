@@ -12,7 +12,6 @@
 #include <string.h>
 #include <linux/ioctl.h>
 
-
 #include "../benchmod/benchmod.h"
 
 #define BENCHMOD_NAME "/proc/benchmod"
@@ -143,6 +142,12 @@ static inline int do_ioctl_benchmark(int fd, struct benchmod_arg *args)
 static inline void do_ioctl_read(int fd, struct timespec *times)
 {
     ioctl(fd, _IOR('m', 1, struct timespec*), times);
+}
+
+
+static inline void do_empty_ioctl(int fd)
+{
+    ioctl(fd, _IO('m', 1));
 }
 
 struct timespec ts_diff(struct timespec start, struct timespec end)
@@ -280,7 +285,7 @@ int main(int argc, char **argv)
     }
 
     ioctl_arg.fd = fd;
-    ioctl_arg.ntimes = popt_args.loop / popt_args.nthreads;
+    ioctl_arg.ntimes = popt_args.loop;
 
     pthread_barrier_init(&barrier, NULL, popt_args.nthreads + 1);
     for(i = 0; i < popt_args.nthreads; i++) {
