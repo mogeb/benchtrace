@@ -1,8 +1,8 @@
 CC = gcc
-SOURCE = allcalls.c
+SOURCE = uspace-benchmod.c
 LIBS += -lpopt -lpthread
 CFLAGS = -g
-BIN = allcalls
+BIN = uspace-benchmod
 BUILDDIR = bin
 
 all: $(BIN)

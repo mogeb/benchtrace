@@ -12,7 +12,7 @@
 #include <string.h>
 #include <linux/ioctl.h>
 
-#include "../benchmod/benchmod.h"
+#include "../utils/benchmod_utils.h"
 
 #define BENCHMOD_NAME "/proc/benchmod"
 
