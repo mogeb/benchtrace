@@ -5,6 +5,9 @@ BINDIR = bin
 
 all: $(BIN)
 
+debug: CFLAGS += -g
+debug: all
+
 $(BIN): ustbench.o tp.o | $(BINDIR)
 	gcc $(CFLAGS) -o $(BINDIR)/$(BIN) ustbench.o tp.o lightweight-ust.o libustperf.o -ldl -llttng-ust -lpthread -lpopt
 

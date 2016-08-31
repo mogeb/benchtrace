@@ -1,19 +1,10 @@
-#include <stdio.h>
 #include <time.h>
 #include <unistd.h>
 #include <sys/mman.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "libustperf.h"
-
-struct worker_thread_args {
-    int id;
-    int loops;
-};
 
 /* perf_event_open syscall wrapper */
 static long
@@ -183,8 +174,8 @@ void perf_init(int nCpus)
 void ustperf_do_work(void (*func)(), void *a)
 {
     int i, min;
-    struct worker_thread_args *args;
-    args = (struct worker_thread_args*) a;
+    struct libustperf_args *args;
+    args = (struct libustperf_args*) a;
     int cpu = args->id;
     unsigned long pmu1_start, pmu1_end;
     unsigned long pmu2_start, pmu2_end;
@@ -193,14 +184,6 @@ void ustperf_do_work(void (*func)(), void *a)
     struct timespec ts_start, ts_end, ts_diff;
     struct perf_event_mmap_page *perf_mmap1, *perf_mmap2, *perf_mmap3,
             *perf_mmap4;
-//    int fd = 4; // for tracers other than syscall
-
-//    if(strcmp(popt_args.tracer, "syscall") == 0) {
-//        fd = open("/proc/benchmod", O_RDONLY);
-//        if(fd == -1) {
-//            printf("Error opening /proc/benchmod\n");
-//        }
-//    }
 
     perf_mmap1 = setup_perf(attr1);
     if(!perf_mmap1) {
@@ -250,10 +233,6 @@ void ustperf_do_work(void (*func)(), void *a)
         cpu_perf[cpu].pos++;
         cpu_perf[cpu].pos = cpu_perf[cpu].pos % PER_CPU_ALLOC;
     }
-
-//    if(strcmp(popt_args.tracer, "syscall") == 0) {
-//        close(fd);
-//    }
 
 out:
     return;

@@ -10,11 +10,6 @@ struct popt_args {
     int len;
 };
 
-struct worker_thread_args {
-    int id;
-    int loops;
-};
-
 struct popt_args popt_args;
 
 struct poptOption options[] = {

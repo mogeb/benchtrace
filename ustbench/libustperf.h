@@ -9,6 +9,11 @@
 
 #define TRACK_PMU_MISSES  1
 
+struct libustperf_args {
+    int id;
+    int loops;
+};
+
 struct measurement_entry {
     unsigned long pmu1;
     unsigned long pmu2;

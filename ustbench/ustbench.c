@@ -1,21 +1,15 @@
 #define _GNU_SOURCE
-#include <sched.h>
-#include <sys/syscall.h>
 #include <pthread.h>
-#include <time.h>
 #include <unistd.h>
-#include <inttypes.h>
 #include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 
-#include "lightweight-ust.h"
 #include "ustbench.h"
+#include "lightweight-ust.h"
 #include "benchmod_utils.h"
 #include "libustperf.h"
 
-/* Defines whether we track misses or branches */
+/* Defines whether we track misses (1) or branches (0) */
 #define TRACK_PMU_MISSES   1
 
 #define TRACEPOINT_DEFINE
@@ -77,24 +71,9 @@ void *do_work(void *a)
     return 0;
 }
 
-int main(int argc, char **argv)
+void init_work_function()
 {
-    int i, fd, nCpus;
-    struct worker_thread_args *worker_args;
-    pthread_t *threads;
-    poptContext pc;
-
-    popt_args.tracer = "lttng-ust";
-    popt_args.loops = 10;
-    popt_args.nthreads = 1;
-
-    nCpus = sysconf(_SC_NPROCESSORS_ONLN);
-    parse_args(argc, argv, &pc);
-    threads = (pthread_t*) malloc(popt_args.nthreads * sizeof(pthread_t));
-    worker_args = (struct worker_thread_args*)
-            malloc(popt_args.nthreads * sizeof(struct worker_thread_args));
-
-    perf_init(nCpus);
+    int fd;
 
     if(strcmp(popt_args.tracer, "lw-ust") == 0) {
         printf("Setting tracer lw-ust\n");
@@ -133,6 +112,27 @@ int main(int argc, char **argv)
         printf("Setting tracer lttng-ust\n");
         do_tp = do_lttng_ust_tp;
     }
+}
+
+int main(int argc, char **argv)
+{
+    int i, nCpus;
+    struct libustperf_args *worker_args;
+    pthread_t *threads;
+    poptContext pc;
+
+    popt_args.tracer = "lttng-ust";
+    popt_args.loops = 10;
+    popt_args.nthreads = 1;
+
+    nCpus = sysconf(_SC_NPROCESSORS_ONLN);
+    parse_args(argc, argv, &pc);
+    threads = (pthread_t*) malloc(popt_args.nthreads * sizeof(pthread_t));
+    worker_args = (struct libustperf_args*)
+            malloc(popt_args.nthreads * sizeof(struct libustperf_args));
+
+    perf_init(nCpus);
+    init_work_function();
 
     for(i = 0; i < popt_args.nthreads; i++) {
         worker_args[i].id = i;
