@@ -1,5 +1,5 @@
 LIBS += -ldl -llttng-ust -lpthread -lpopt
-CFLAGS = -g -I../utils
+CFLAGS = -I../utils
 BIN = ustbench
 BINDIR = bin
 

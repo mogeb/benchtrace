@@ -24,7 +24,6 @@
 
 
 void (*do_tp)(size_t size);
-static int nCpus;
 char *open_filename;
 
 static inline void do_lttng_ust_tp(size_t size)
@@ -80,9 +79,8 @@ void *do_work(void *a)
 
 int main(int argc, char **argv)
 {
-    int i, fd;
+    int i, fd, nCpus;
     struct worker_thread_args *worker_args;
-    nCpus = sysconf(_SC_NPROCESSORS_ONLN);
     pthread_t *threads;
     poptContext pc;
 
@@ -90,13 +88,12 @@ int main(int argc, char **argv)
     popt_args.loops = 10;
     popt_args.nthreads = 1;
 
+    nCpus = sysconf(_SC_NPROCESSORS_ONLN);
     parse_args(argc, argv, &pc);
     threads = (pthread_t*) malloc(popt_args.nthreads * sizeof(pthread_t));
     worker_args = (struct worker_thread_args*)
             malloc(popt_args.nthreads * sizeof(struct worker_thread_args));
 
-    /* allocate cpu_perf before calling perf_init() */
-    cpu_perf = malloc(nCpus * sizeof(struct measurement_cpu_perf));
     perf_init(nCpus);
 
     if(strcmp(popt_args.tracer, "lw-ust") == 0) {

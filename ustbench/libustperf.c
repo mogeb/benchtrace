@@ -74,6 +74,8 @@ void perf_init(int nCpus)
 {
     int i;
 
+    cpu_perf = malloc(nCpus * sizeof(struct measurement_cpu_perf));
+
     for(i = 0; i < nCpus; i++) {
         cpu_perf[i].entries = (struct measurement_entry*) malloc(PER_CPU_ALLOC *
                     sizeof(struct measurement_entry));
@@ -191,7 +193,7 @@ void ustperf_do_work(void (*func)(), void *a)
     struct timespec ts_start, ts_end, ts_diff;
     struct perf_event_mmap_page *perf_mmap1, *perf_mmap2, *perf_mmap3,
             *perf_mmap4;
-    int fd = 4; // for tracers other than syscall
+//    int fd = 4; // for tracers other than syscall
 
 //    if(strcmp(popt_args.tracer, "syscall") == 0) {
 //        fd = open("/proc/benchmod", O_RDONLY);
@@ -203,18 +205,22 @@ void ustperf_do_work(void (*func)(), void *a)
     perf_mmap1 = setup_perf(attr1);
     if(!perf_mmap1) {
         printf("Couldn't allocate perf_mmap1\n");
+        goto out;
     }
     perf_mmap2 = setup_perf(attr2);
     if(!perf_mmap2) {
         printf("Couldn't allocate perf_mmap2\n");
+        goto out;
     }
     perf_mmap3 = setup_perf(attr3);
     if(!perf_mmap3) {
         printf("Couldn't allocate perf_mmap3\n");
+        goto out;
     }
     perf_mmap4 = setup_perf(attr4);
     if(!perf_mmap4) {
         printf("Couldn't allocate perf_mmap4\n");
+        goto out;
     }
 
     printf("min = %d\n", min);
@@ -249,5 +255,6 @@ void ustperf_do_work(void (*func)(), void *a)
 //        close(fd);
 //    }
 
+out:
     return;
 }
