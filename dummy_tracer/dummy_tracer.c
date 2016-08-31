@@ -1,5 +1,5 @@
-#include <linux/kernel.h>	/* We're doing kernel work */
-#include <linux/module.h>	/* Specifically, a module */
+#include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/slab.h>
 #include <linux/ioctl.h>
@@ -8,11 +8,11 @@
 
 #include <asm/tsc.h>
 
+#include "utils.h"
 #include "dummy_tracer.h"
 #include "measure.h"
 
 #define PROC_ENTRY_NAME "dummy_tracer"
-#define CPUS 4
 
 #define BENCHMARK_MAGIC 'd'
 
@@ -20,32 +20,6 @@
 #define IOCTL_READ_RES  _IOR(BENCHMARK_MAGIC, 1, struct timspec*)
 #define IOCTL_EMPTY_CALL _IO(BENCHMARK_MAGIC, 2)
 #define BILLION 1000000000
-
-ssize_t *sizes;
-
-struct timespec do_ts_diff(struct timespec start, struct timespec end)
-{
-    struct timespec temp;
-    if ((end.tv_nsec - start.tv_nsec) < 0) {
-        temp.tv_sec = end.tv_sec - start.tv_sec - 1;
-        temp.tv_nsec = 1000000000 + end.tv_nsec-start.tv_nsec;
-    } else {
-        temp.tv_sec = end.tv_sec - start.tv_sec;
-        temp.tv_nsec = end.tv_nsec - start.tv_nsec;
-    }
-    return temp;
-}
-
-struct timespec do_ts_add(struct timespec t1, struct timespec t2)
-{
-    long sec = t2.tv_sec + t1.tv_sec;
-    long nsec = t2.tv_nsec + t1.tv_nsec;
-    if (nsec >= BILLION) {
-        nsec -= BILLION;
-        sec++;
-    }
-    return (struct timespec){ .tv_sec = sec, .tv_nsec = nsec };
-}
 
 long benchmod_ioctl(
         struct file *file,
@@ -93,7 +67,7 @@ static int dummy_unregister_tracepoint(struct tp_module *tp_mod, void *func)
         struct tracepoint *tp;
 
         tp = tp_mod->mod->tracepoints_ptrs[i];
-//        printk("[Dummy] Unregistering TP name: %s\n", tp->name);
+        printk("[Dummy] Unregistering TP name: %s\n", tp->name);
         ret = tracepoint_probe_unregister(tp, func, NULL);
     }
 

@@ -49,10 +49,10 @@ struct tracker_measurement_cpu_perf {
 
 struct perf_event_attr attr1, attr2, attr3, attr4;
 
-char metric1[METRIC_LEN];
-char metric2[METRIC_LEN];
-char metric3[METRIC_LEN];
-char metric4[METRIC_LEN];
+char metric1_str[METRIC_LEN];
+char metric2_str[METRIC_LEN];
+char metric3_str[METRIC_LEN];
+char metric4_str[METRIC_LEN];
 
 static struct tracker_measurement_cpu_perf __percpu *tracker_cpu_perf;
 
@@ -127,7 +127,7 @@ int alloc_measurements(void)
     attr1.config = PERF_COUNT_HW_CACHE_L1D | \
                PERF_COUNT_HW_CACHE_OP_READ << 8 | \
                PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
-    strncat(metric1, "L1_misses", METRIC_LEN);
+    strncat(metric1_str, "L1_misses", METRIC_LEN);
 
     /**
       WARNING: LLC MISSES CRASHES!!!
@@ -151,7 +151,7 @@ int alloc_measurements(void)
     attr2.disabled = 0;
     attr2.type = PERF_TYPE_HARDWARE;
     attr2.config = PERF_COUNT_HW_CACHE_MISSES;
-    strncat(metric2, "Cache_misses", METRIC_LEN);
+    strncat(metric2_str, "Cache_misses", METRIC_LEN);
 
     /* attr4 = dTLB-load-misses */
 //    attr2.size = sizeof(struct perf_event_attr);
@@ -189,14 +189,14 @@ int alloc_measurements(void)
     attr3.disabled = 0;
     attr3.type = PERF_TYPE_HARDWARE;
     attr3.config = PERF_COUNT_HW_CPU_CYCLES;
-    strncat(metric3, "CPU_cycles", METRIC_LEN);
+    strncat(metric3_str, "CPU_cycles", METRIC_LEN);
 
     attr4.size = sizeof(struct perf_event_attr);
     attr4.pinned = 1;
     attr4.disabled = 0;
     attr4.type = PERF_TYPE_HARDWARE;
     attr4.config = PERF_COUNT_HW_INSTRUCTIONS;
-    strncat(metric4, "Instructions", METRIC_LEN);
+    strncat(metric4_str, "Instructions", METRIC_LEN);
 
 //    attr1.size = sizeof(struct perf_event_attr);
 //    attr1.pinned = 1;
@@ -282,8 +282,8 @@ void output_measurements(void)
         goto end;
     }
 
-    snprintf(buf, 256, "latency,%s,%s,%s,%s\n", metric1, metric2, metric3,
-             metric4);
+    snprintf(buf, 256, "latency,%s,%s,%s,%s\n", metric1_str, metric2_str, metric3_str,
+             metric4_str);
     vfs_write(file, buf, strlen(buf), &pos);
     for_each_online_cpu(cpu) {
         struct tracker_measurement_cpu_perf *_bench_c;
