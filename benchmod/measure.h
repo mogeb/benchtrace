@@ -30,7 +30,7 @@
 #define METRIC_LEN         32
 #define PER_CPU_ALLOC      5000
 
-/** Defines whether we track misses or branches */
+/* Defines whether we track misses or branches */
 #define TRACK_PMU_MISSES   1
 
 #define BENCH_PREAMBULE unsigned long _bench_flags; \
@@ -78,23 +78,6 @@
 
 #define BENCH_APPEND \
     local_irq_restore(_bench_flags)
-
-struct tracker_measurement_entry {
-    u64 pmu1;
-    u64 pmu2;
-    u64 pmu3;
-    u64 pmu4;
-    u64 latency;
-};
-
-struct tracker_measurement_cpu_perf {
-    struct perf_event *event1;
-    struct perf_event *event2;
-    struct perf_event *event3;
-    struct perf_event *event4;
-    struct tracker_measurement_entry *entries;
-    unsigned int pos;
-};
 
 static struct perf_event_attr attr1, attr2, attr3, attr4;
 
