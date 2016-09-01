@@ -173,7 +173,7 @@ void perf_init(int nCpus)
 
 void ustperf_do_work(void (*func)(), void *a)
 {
-    int i, min;
+    int i;
     struct libustperf_args *args;
     args = (struct libustperf_args*) a;
     int cpu = args->id;
@@ -206,7 +206,6 @@ void ustperf_do_work(void (*func)(), void *a)
         goto out;
     }
 
-    printf("min = %d\n", min);
     for(i = 0; i < args->loops; i++) {
         int pos = cpu_perf[cpu].pos;
         pmu1_start = mmap_read_self(perf_mmap1);
