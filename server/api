@@ -1,0 +1,30 @@
+GET api/<lttng version>/<space>/<tracer>
+
+Gets the values stored in the DB. The problem is that the FE will require to query all versions, tracers individually:
+(num tracers) * (num versions per tracer) requests in total if we want to show everything. The other problem is that we can't keep track of multiple versioning systems.
+
+
+# request
+body: {
+}
+
+# response
+answer: {
+  metrics[]: {
+    name: string,
+    average: int,
+    stdev: int
+  }
+}
+
+
+PUT api/<space>/<tracer>
+# request. Not sure if we want these to be configurable. These parameters shouldn't be configurable since we want to run the exact same tests with the same parameters over time. The LTTng version is provided regardless of the tracer since it will serve as the time reference. For tracers that don't support sub-buffers, the buffer size will be set to (num_subbuf) * (subbuf_size_kb) kb.
+
+body: {
+  loops: int,
+  payload_size: int,
+  lttng_version: string,
+  num_subbuf: int
+  subbuf_size_kb: int
+}
