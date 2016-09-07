@@ -185,7 +185,11 @@ long benchmod_ioctl(
         return 0;
     }
 
-    benchmod_arg = (struct benchmod_arg*) ioctl_param;
+    benchmod_arg = (struct benchmod_arg*) kmalloc(sizeof(struct benchmod_arg),
+            GFP_KERNEL);
+    copy_from_user((struct benchmod_arg*) benchmod_arg,
+                   (struct benchmod_arg*) ioctl_param,
+                   sizeof(struct benchmod_arg));
 
     if(!ioctl_param) {
         printk("ioctl_param is NULL\n");
