@@ -22,24 +22,15 @@
 \*****************************************************************************/
 
 #define _GNU_SOURCE
-#include <sched.h>
-#include <stdio.h>
 #include <pthread.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-#include <time.h>
-#include <sys/mman.h>
-#include <sys/syscall.h>
-#include <linux/perf_event.h>
-#include <linux/hw_breakpoint.h>
 
-#include "utils.h"
-#include "ustbench.h"
+#include "extrae-bench.h"
 #include "extrae_user_events.h"
 #include "libustperf.h"
 
-void do_extrae_tp(size_t size)
+static inline void do_extrae_tp(size_t size)
 {
     Extrae_event(1000, size);
 //    Extrae_counters();
@@ -118,14 +109,14 @@ int main (int argc, char *argv[])
 {
     int i, nCpus;
     pthread_t *threads;
-    struct worker_thread_args *worker_args;
+    struct libustperf_args *worker_args;
     poptContext pc;
 
     nCpus = sysconf(_SC_NPROCESSORS_ONLN);
     parse_args(argc, argv, &pc);
     threads = (pthread_t*) malloc(popt_args.nthreads * sizeof(pthread_t));
-    worker_args = (struct worker_thread_args*)
-            malloc(popt_args.nthreads * sizeof(struct worker_thread_args));
+    worker_args = (struct libustperf_args*)
+            malloc(popt_args.nthreads * sizeof(struct libustperf_args));
 
     perf_init(nCpus);
 //    Extrae_init ();
