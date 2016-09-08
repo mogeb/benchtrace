@@ -1,20 +1,7 @@
-#ifndef USTBENCH_H
-#define USTBENCH_H
+#ifndef VAMPIRBENCH_H
+#define VAMPIRBENCH_H
 
 #include <popt.h>
-
-struct measurement_entry {
-    unsigned long pmu1;
-    unsigned long pmu2;
-    unsigned long pmu3;
-    unsigned long pmu4;
-    unsigned long latency;
-};
-
-struct measurement_cpu_perf {
-    struct measurement_entry *entries;
-    unsigned int pos;
-};
 
 struct popt_args {
     int nthreads;
@@ -41,11 +28,6 @@ struct poptOption options[] = {
         POPT_ARG_INT | POPT_ARGFLAG_OPTIONAL,
         &popt_args.nthreads, 0, "nthreads"
     },
-    {
-        "tracer", 't',
-        POPT_ARG_STRING | POPT_ARGFLAG_OPTIONAL,
-        &popt_args.tracer, 0, "tracer"
-    },
     POPT_AUTOHELP
 };
 
@@ -65,19 +47,5 @@ static void parse_args(int argc, char **argv, poptContext *pc)
     }
 }
 
-struct timespec do_ts_diff(struct timespec start,
-                                         struct timespec end)
-{
-    struct timespec temp;
-    if ((end.tv_nsec - start.tv_nsec) < 0) {
-        temp.tv_sec = end.tv_sec - start.tv_sec - 1;
-        temp.tv_nsec = 1000000000 + end.tv_nsec-start.tv_nsec;
-    } else {
-        temp.tv_sec = end.tv_sec - start.tv_sec;
-        temp.tv_nsec = end.tv_nsec - start.tv_nsec;
-    }
-    return temp;
-}
-
-#endif // USTBENCH_H
+#endif // VAMPIRBENCH_H
 
