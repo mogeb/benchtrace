@@ -3,7 +3,6 @@
 
 #include <asm/unistd.h>
 #include <linux/perf_event.h>
-#include <linux/hw_breakpoint.h>
 #include <popt.h>
 #include "utils.h"
 
