@@ -176,7 +176,7 @@ int start_benchmark(struct benchmod_arg arg)
 long benchmod_ioctl(
         struct file *file,
         unsigned int ioctl_num,/* The number of the ioctl */
-        unsigned long ioctl_param) /* The parameter to it */
+        unsigned long __user ioctl_param) /* The parameter to it */
 {
     int ret = 0;
     struct benchmod_arg *benchmod_arg;
