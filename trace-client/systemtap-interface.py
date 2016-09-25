@@ -5,8 +5,8 @@ def start_tracing(tracename, args, tracepoints = None):
 
 
 def run_command(cmd, args):
-    command ='/home/mogeb/git/systemtap/stap -k ' \
-             '/home/mogeb/git/benchtrace/systemtap/do_tp.stp -c "%s"' % (cmd)
+    command ='/home/mogeb/git/systemtap/stap -o /dev/null -g --suppress-time-limits -k ' \
+             '/home/mogeb/git/benchtrace/systemtap/do_tp.stp -c "%s" > /dev/null' % (cmd)
     print(command)
     call(command, shell=True)
 
