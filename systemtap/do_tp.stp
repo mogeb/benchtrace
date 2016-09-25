@@ -1,5 +1,11 @@
+global trace%[20000]
+global indices%[64]
+
 probe module("benchmod").function("tp_4b") {
   now_time = gettimeofday_ns()
-  (block) now_time
-//  print(now_time, "\n")
+  cpu = cpu()
+  trace[cpu, indices[cpu]] = now_time
+  indices[cpu]++
+  indices[cpu] = indices[cpu] % 5000
 }
+
