@@ -2,6 +2,7 @@ LIBS += -ldl -llttng-ust -lpthread -lpopt
 CFLAGS = -I../utils
 BIN = ustbench
 BINDIR = bin
+LIBS = -ldl -llttng-ust -lpthread -lpopt -lurcu-bp
 
 all: $(BIN)
 
@@ -9,7 +10,7 @@ debug: CFLAGS += -g
 debug: all
 
 $(BIN): ustbench.o tp.o | $(BINDIR)
-	gcc $(CFLAGS) -o $(BINDIR)/$(BIN) ustbench.o tp.o lightweight-ust.o libustperf.o -ldl -llttng-ust -lpthread -lpopt
+	gcc $(CFLAGS) -o $(BINDIR)/$(BIN) ustbench.o tp.o lightweight-ust.o libustperf.o $(LIBS)
 
 ustbench.o: ustbench.c lightweight-ust.o libustperf.o
 	gcc $(CFLAGS) -I. -I/usr/include -c -o ustbench.o ustbench.c 
