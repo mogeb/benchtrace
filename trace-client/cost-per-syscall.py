@@ -62,6 +62,7 @@ def compile_percentiles(args):
     tracers = args['tracers']
     buf_sizes_kb = args['buf_sizes_kb']
     perc = 0.90
+    none_average = 63
 
     for buf_size_kb in buf_sizes_kb:
         for nprocess in nprocesses:
@@ -74,25 +75,61 @@ def compile_percentiles(args):
                     with open(fname, 'r') as f:
                         legend = f.readline()
                     legend = legend.split(',')
-                    values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend,
-                        dtype=None, invalid_raise=False)
+                    values = np.genfromtxt(fname, delimiter=',', skip_header=1,
+                        names=legend, dtype=None, invalid_raise=False)
                     percentiles.append(np.percentile(values['latency'], perc))
-                    print('[%s] Average = %d' % (tracer, np.average(values['latency'])))
-                    print('[%s] %dth percentile = %d' % (tracer, (perc * 100), np.percentile(values['latency'], perc)))
+                    latency_average = int(np.average(values['latency']))
+                    latency_std = int(np.std(values['latency']))
+                    l1misses_average = int(np.average(values['L1_misses']))
+                    l1misses_std = int(np.std(values['L1_misses']))
+                    cmisses_avg = int(np.average(values['Cache_misses']))
+                    cmisses_std = int(np.std(values['Cache_misses']))
+                    cycles_avg = int(np.average(values['CPU_cycles']))
+                    cycles_std = int(np.std(values['CPU_cycles']))
+                    insn_avg = int(np.average(values['Instructions']))
+                    insn_std = int(np.std(values['Instructions']))
+                
+                    print('[%s] Average = %d' %
+                          (tracer, latency_average))
+                    print('[%s] Std dev = %d' %
+                          (tracer, latency_std))
+                    overhead = ((latency_average - none_average) / none_average) * 100
+                    print('[%s] Overhead = %d' %
+                          (tracer,  overhead))
+                    print('[%s] %dth percentile = %d' %
+                        (tracer, (perc * 100), np.percentile(values['latency'], perc)))
+                    print('\multicolumn{1}{l}{%s} &\
+\multicolumn{1}{c}{%d} & \
+\multicolumn{1}{c}{%d} & \
+\multicolumn{1}{c}{%d} \\\\' % (tracer, latency_average, overhead, latency_std))
+                    print('-')
+                    print('\multicolumn{1}{l|}{%s} & \
+\multicolumn{1}{c}{%d} & \
+\multicolumn{1}{c|}{%d} & \
+\multicolumn{1}{c}{%d} & \
+\multicolumn{1}{c|}{%d} & \
+\multicolumn{1}{c}{%d} & \
+\multicolumn{1}{c|}{%d} & \
+\multicolumn{1}{c}{%d} & \
+\multicolumn{1}{c|}{%d} & \
+\multicolumn{1}{c}{%d} & \
+\multicolumn{1}{c}{%d} \\\\' % (tracer, latency_average, latency_std, l1misses_average, l1misses_std,
+                                cmisses_avg, cmisses_std, insn_avg, insn_std, cycles_avg, cycles_std))
+                    print('------')
                     averages_file.write('[%s] Average = %d\n' % (tracer, np.average(values['latency'])))
                     averages_file.write('[%s] %dth percentile = %d\n' % (tracer, (perc * 100), np.percentile(values['latency'], perc)))
 #                plt.plot(tp_sizes, percentiles, 'o-', label=tracer, color=tracers_colors[tracer])
             averages_file.close()
-            plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to'
-                                             'payload size')
-            plt.xlabel('Payload size in bytes')
-            plt.ylabel('Time in ns')
-            fontP = FontProperties()
-            fontP.set_size('small')
+            # plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to'
+                                            #  'payload size')
+            # plt.xlabel('Payload size in bytes')
+            # plt.ylabel('Time in ns')
+            # fontP = FontProperties()
+            # fontP.set_size('small')
 
             # imgname = 'pertp/90th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
-            plt.legend()
-            plt.show()
+            # plt.legend()
+            # plt.show()
             # plt.savefig(imgname + '.png', dpi=100)
 
 

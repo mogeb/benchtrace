@@ -1,13 +1,13 @@
 import shutil
 from pylab import *
-from subprocess import call
 from collections import defaultdict
 from matplotlib.font_manager import FontProperties
 
 
 tracers_colors = { 'none': 'r', 'lttng-ust': 'b', 'ftrace': 'y', 'lw-ust': 'm',
                    'stap-ust': 'black', 'printf': 'darksalmon',
-                   'lttng-tracef': 'limegreen', 'extrae': 'teal' }
+                   'lttng-tracef': 'limegreen', 'extrae': 'teal',
+                   'vampirtrace': 'goldenrod'}
 
 
 def init(args = None):
@@ -52,11 +52,12 @@ def cleanup(args = None):
 
 
 def compile_results(args):
+    compile_percentiles_nthreads(args)
     compile_percentiles(args)
     compile_scatter_plot(args)
-    # compile_scatter_plot_CPI(args)
-    # compile_scatter_plot_nthreads(args)
-    # compile_percentiles_nthreads(args)
+    # # compile_averages_threads(args)
+    # # compile_scatter_plot_CPI(args)
+    # # compile_scatter_plot_nthreads(args)
 
 
 def compile_percentiles(args):
@@ -66,6 +67,7 @@ def compile_percentiles(args):
     tracers = args['tracers']
     buf_sizes_kb = args['buf_sizes_kb']
     perc = 0.90
+    none_average = 17
 
     for buf_size_kb in buf_sizes_kb:
         for nprocess in nprocesses:
@@ -78,14 +80,52 @@ def compile_percentiles(args):
                     with open(fname, 'r') as f:
                         legend = f.readline()
                     legend = legend.split(',')
-                    values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend,
-                        dtype=None, invalid_raise=False)
+                    values = np.genfromtxt(fname, delimiter=',', skip_header=1,
+                        names=legend, dtype=None, invalid_raise=False)
                     percentiles.append(np.percentile(values['latency'], perc))
-                    print('[%s] Average = %d' % (tracer, np.average(values['latency'])))
-                    print('[%s] %dth percentile = %d' % (tracer, (perc * 100), np.percentile(values['latency'], perc)))
-                    averages_file.write('[%s] Average = %d\n' % (tracer, np.average(values['latency'])))
-                    averages_file.write('[%s] %dth percentile = %d\n' % (tracer, (perc * 100), np.percentile(values['latency'], perc)))
-#                plt.plot(tp_sizes, percentiles, 'o-', label=tracer, color=tracers_colors[tracer])
+                    latency_average = int(np.average(values['latency']))
+                    latency_std = int(np.std(values['latency']))
+                    l1misses_average = int(np.average(values['L1_misses']))
+                    l1misses_std = int(np.std(values['L1_misses']))
+                    cmisses_avg = int(np.average(values['Cache_misses']))
+                    cmisses_std = int(np.std(values['Cache_misses']))
+                    cycles_avg = int(np.average(values['CPU_cycles']))
+                    cycles_std = int(np.std(values['CPU_cycles']))
+                    insn_avg = int(np.average(values['Instructions']))
+                    insn_std = int(np.std(values['Instructions']))
+                    print('[%s] Average = %d' %
+                          (tracer, np.average(values['latency'])))
+                    print('[%s] Std dev = %d' %
+                          (tracer, np.std(values['latency'])))
+                    overhead = ((latency_average - none_average) / none_average) * 100
+                    print('[%s] Overhead = %d' %
+                          (tracer,  overhead))
+                    print('[%s] %dth percentile = %d' %
+                          (tracer, (perc * 100), np.percentile(values['latency'], perc)))
+                    print('\multicolumn{1}{l}{%s} & '
+                        '\multicolumn{1}{c}{%d} & '
+                        '\multicolumn{1}{c}{%d%%} & '
+                        '\multicolumn{1}{c}{%d} \\\\' % (tracer, latency_average, overhead,
+                            latency_std))
+                    print('-')
+                    print('\multicolumn{1}{l|}{%s} & '
+                        '\multicolumn{1}{c}{%d} & '
+                        '\multicolumn{1}{c|}{%d} & '
+                        '\multicolumn{1}{c}{%d} & '
+                        '\multicolumn{1}{c|}{%d} & '
+                        '\multicolumn{1}{c}{%d} & '
+                        '\multicolumn{1}{c|}{%d} & '
+                        '\multicolumn{1}{c}{%d} & '
+                        '\multicolumn{1}{c|}{%d} & '
+                        '\multicolumn{1}{c}{%d} & '
+                        '\multicolumn{1}{c}{%d} \\\\' % (tracer, latency_average, latency_std,
+                            l1misses_average, l1misses_std, cmisses_avg, cmisses_std, insn_avg,
+                            insn_std, cycles_avg, cycles_std))
+                    print('------')
+                    averages_file.write('[%s] Average = %d\n' % (tracer, latency_average))
+                    averages_file.write('[%s] %dth percentile = %d\n' % (tracer,
+                         (perc * 100), np.percentile(values['latency'], perc)))
+                # plt.plot(tp_sizes, percentiles, 'o-', label=tracer, color=tracers_colors[tracer])
             averages_file.close()
             plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to'
                                              'payload size')
@@ -95,11 +135,53 @@ def compile_percentiles(args):
             fontP.set_size('small')
 
             # imgname = 'pertp/90th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
-            plt.legend()
-            plt.show()
+            # plt.legend()
+            # plt.show()
             # plt.savefig(imgname + '.png', dpi=100)
 
 
+def compile_averages_threads(args):
+    res_dir = '/home/mogeb/git/benchtrace/trace-client/'
+    tp_sizes = args['tp_sizes']
+    nprocesses = args['nprocesses']
+    tracers = args['tracers']
+    buf_size_kb = args['buf_sizes_kb'][0]
+    perc = 0.90
+
+    averages = defaultdict()
+    for nprocess in nprocesses:
+        averages_file = open('averages', 'w')
+        for tracer in tracers:
+            percentiles = []
+            for tp_size in tp_sizes:
+                fname = tracer + '_' + str(tp_size) + 'bytes_' + buf_size_kb\
+                        + 'kbsubbuf_' + nprocess + '_process.hist'
+                with open(fname, 'r') as f:
+                    legend = f.readline()
+                legend = legend.split(',')
+                values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend,
+                    dtype=None, invalid_raise=False)
+                percentiles.append(np.percentile(values['latency'], perc))
+                print('[%s] Average = %d' % (tracer, np.average(values['latency'])))
+                print('[%s] %dth percentile = %d' % (tracer, (perc * 100), np.percentile(values['latency'], perc)))
+                averages_file.write('[%s] Average = %d\n' % (tracer, np.average(values['latency'])))
+                averages_file.write('[%s] %dth percentile = %d\n' % (tracer, (perc * 100), np.percentile(values['latency'], perc)))
+            plt.plot(tp_sizes, percentiles, 'o-', label=tracer, color=tracers_colors[tracer])
+        averages_file.close()
+        plt.title(str(int(perc * 100)) + 'th percentiles for the cost of a tracepoint according to'
+                                         'payload size')
+        plt.xlabel('Payload size in bytes')
+        plt.ylabel('Time in ns')
+        fontP = FontProperties()
+        fontP.set_size('small')
+
+        # imgname = 'pertp/90th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
+        plt.legend()
+#        plt.show()
+        # plt.savefig(imgname + '.png', dpi=100)
+
+
+labels = {0: '-', 1: 'a', 2: 'b', 3: 'c', 4: 'd'}
 def compile_scatter_plot(args):
     tp_size = args['tp_sizes'][0]
     tracers = args['tracers']
@@ -115,9 +197,10 @@ def compile_scatter_plot(args):
     legend = legend.split(',')
     i = 0
     for tracer in tracers:
-        fname = res_dir + tracer + '_' + tp_size + 'bytes_' + buf_sizes_kb[0] + 'kbsubbuf_'\
-            + nprocesses[0] + '_process.hist'
-        values[tracer] = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None)
+        fname = res_dir + tracer + '_' + tp_size + 'bytes_' + buf_sizes_kb[0] +\
+            'kbsubbuf_' + nprocesses[0] + '_process.hist'
+        values[tracer] = np.genfromtxt(fname, delimiter=',', skip_header=1,
+            names=legend, dtype=None)
 
     fontP = FontProperties()
     fontP.set_size('small')
@@ -127,13 +210,15 @@ def compile_scatter_plot(args):
             if metric == 'latency':
                 continue
             metric = metric.strip()
-            plt.scatter(values[tracer][metric], values[tracer]['latency'], color=tracers_colors[tracer], alpha=0.3, label=tracer)
-        plt.title('Latency according to ' + metric)
+            plt.scatter(values[tracer][metric], values[tracer]['latency'],
+                        color=tracers_colors[tracer], alpha=0.3, label=tracer)
+        plt.title(labels[i] + ') Latency according to ' + metric)
         plt.xlabel(metric)
         plt.ylabel('Latency in ns')
-        plt.legend(prop=fontP)
+        # plt.legend(prop=fontP)
         i += 1
-    plt.show()
+    plt.legend(loc=4, borderaxespad=0., fontsize='small')
+#    plt.show()
 
 
 def compile_scatter_plot_nthreads(args):
@@ -174,7 +259,7 @@ def compile_scatter_plot_nthreads(args):
         plt.ylabel('Latency in ns')
         plt.legend(prop=fontP)
         i += 1
-    plt.show()
+#    plt.show()
 
 
 def compile_percentiles_nthreads(args):
@@ -188,57 +273,36 @@ def compile_percentiles_nthreads(args):
     buf_size_kb = buf_sizes_kb[0]
     percentiles = defaultdict(list)
 
+    if len(nprocesses) < 2:
+        return
 
-    perc = 0.9
-    for tracer in tracers:
-        for nproc in nprocesses:
-            fname = tracer + '_' + str(tp_size) + 'bytes_' + buf_size_kb\
-                                + 'kbsubbuf_' + nproc + '_process.hist'
-            with open(fname, 'r') as f:
-                legend = f.readline()
-            legend = legend.split(',')
-            values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None, invalid_raise=False)
-            percentiles[tracer].append(np.average(values['latency']))
+    for buf_size_kb in buf_sizes_kb:
+        percentiles = defaultdict(list)
+        for tracer in tracers:
+            for nprocess in nprocesses:
+                # fname = res_dir + tracer + '_' + str(tp_size) + 'bytes_' + nprocess + 'process.hist'
+                fname = tracer + '_' + str(tp_size) + 'bytes_' + buf_size_kb\
+                        + 'kbsubbuf_' + nprocess + '_process.hist'
+                with open(fname, 'r') as f:
+                    legend = f.readline()
+                legend = legend.split(',')
+                values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None, invalid_raise=False)
+                # percentiles[tracer].append(np.percentile(values['latency'], perc))
+                percentiles[tracer].append(np.average(values['latency']))
+            plt.plot(nprocesses, percentiles[tracer], 'o-', label=tracer, color=tracers_colors[tracer])
 
-        plt.plot(nprocesses, percentiles[tracer], 'o-', label=tracer)
-        plt.title('[' + tracer + '] Average of tracepoint latency according to the number of threads')
+        # plt.title(str(int(perc * 100)) + 'th percentiles of tracepoint latency according to the number of threads')
+        # plt.title('Averages of tracepoint latency according to the number of threads')
         plt.xlabel('Number of threads')
         plt.ylabel('Latency in ns')
         fontP = FontProperties()
         fontP.set_size('small')
+
+        # imgname = 'pertp/' + str(int(perc * 100)) + 'th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
         # plt.axis([0, 9, 0, 900])
-        plt.legend(prop=fontP, loc='upper left')
-        plt.show()
-    return
-
-
-    for buf_size_kb in buf_sizes_kb:
-        for perc in percs:
-            percentiles = defaultdict(list)
-            for tracer in tracers:
-                for nprocess in nprocesses:
-                    # fname = res_dir + tracer + '_' + str(tp_size) + 'bytes_' + nprocess + 'process.hist'
-                    fname = tracer + '_' + str(tp_size) + 'bytes_' + buf_size_kb\
-                            + 'kbsubbuf_' + nprocess + '_process.hist'
-                    with open(fname, 'r') as f:
-                        legend = f.readline()
-                    legend = legend.split(',')
-                    values = np.genfromtxt(fname, delimiter=',', skip_header=1, names=legend, dtype=None, invalid_raise=False)
-                    percentiles[tracer].append(np.percentile(values['latency'], perc))
-                    # percentiles[tracer].append(np.average(values['latency']))
-                plt.plot(nprocesses, percentiles[tracer], 'o-', label=tracer)
-
-            plt.title(str(int(perc * 100)) + 'th percentiles of tracepoint latency according to the number of threads')
-            plt.xlabel('Number of threads')
-            plt.ylabel('Latency in ns')
-            fontP = FontProperties()
-            fontP.set_size('small')
-
-            # imgname = 'pertp/' + str(int(perc * 100)) + 'th_' + nprocess + 'proc_' + str(args['buf_size_kb']) + 'subbuf_kb'
-            plt.axis([0, 9, 0, 900])
-            plt.legend(prop=fontP, loc='upper left')
-            plt.show()
-            # plt.savefig(imgname + '.png', dpi=100)
+        plt.legend(bbox_to_anchor=(1, 0), loc=4, fontsize='small', borderaxespad=1)
+#        plt.show()
+        # plt.savefig(imgname + '.png', dpi=100)
 
 
 def compile_scatter_plot_CPI(args):
@@ -291,4 +355,4 @@ def compile_scatter_plot_CPI(args):
                     label=tracer)
 
     plt.legend(prop=fontP)
-    plt.show()
+#    plt.show()
