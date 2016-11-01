@@ -6,16 +6,17 @@ USTPERF_DIR = ../ustbench
 USTPERF_BIN = libustperf.o
 USTPERF = $(USTPERF_DIR)/$(USTPERF_BIN)
 LIBS = -Wl,-rpath -Wl,$(EXTRAE_HOME)/lib -L$(EXTRAE_HOME)/lib -lpttrace
-CFLAGS = -O -g -I$(EXTRAE_HOME)/include -pthread -I../utils -I../ustbench
+CFLAGS = -O -I$(EXTRAE_HOME)/include -pthread -I../utils -I../ustbench
 USTPERF_CFLAGS = -I../utils
 
 targets: $(BIN)
+debug: CFLAGS += -g
 
 $(BIN): extrae-bench.c libustperf.o | $(BINDIR)
 	$(CC) $< $(CFLAGS) $(LIBS) $(USTPERF) -o $(BINDIR)/$@  -lpopt
 
 run-extrae-bench:
-	EXTRAE_CONFIG_FILE=extrae.xml $(BINDIR)/$(BIN)
+	EXTRAE_CONFIG_FILE=extrae.xml $(BINDIR)/$(BIN) -n 14999 -p 1
 
 merge-extrae-bench:
 	$(EXTRAE_HOME)/bin/mpi2prv set-0/*.mpit -e $(BINDIR)/$(BIN)
