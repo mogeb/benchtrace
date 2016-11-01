@@ -1,5 +1,6 @@
+global trace_data%[10]
+
 probe process("/home/mogeb/git/benchtrace/ustbench/bin/ustbench").function("do_none_tp") {
-  a = gettimeofday_ns()
-  (block) a
-//  print("TP probe", a, "\n")
+  now_time = gettimeofday_ns()
+  trace_data[cpu(), now_time]++
 }
