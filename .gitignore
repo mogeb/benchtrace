@@ -34,3 +34,7 @@ perf.data*
 
 # Data
 *.hist
+
+*.z
+*.otf
+*.thumb
