@@ -19,4 +19,3 @@ struct tracker_measurement_cpu_perf {
 };
 
 #endif // BENCHMOD_H
-
