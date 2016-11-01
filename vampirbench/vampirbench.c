@@ -11,6 +11,13 @@
 
 static inline void do_vampirtrace_tp(size_t size)
 {
+#ifdef MANUAL
+	VT_USER_START("work");
+#endif
+
+#ifdef MANUAL
+	VT_USER_END("work");
+#endif
     return;
 }
 
@@ -27,12 +34,12 @@ void *do_work(void *a)
 
 int main(int argc, char **argv)
 {
-#if (defined(VTRACE))
-    VT_OFF();
-#endif
-#if (defined(MANUAL))
-        VT_USER_START("main");
-#endif
+//#if (defined(VTRACE))
+//	VT_OFF();
+//#endif
+//#if (defined(MANUAL))
+//        VT_USER_START("main");
+//#endif
     int i, nCpus;
     pthread_t *threads;
     struct libustperf_args *worker_args;
@@ -69,9 +76,9 @@ int main(int argc, char **argv)
     }
 
     output_measurements(nCpus);
-#ifdef MANUAL
-        VT_USER_END("main");
-#endif
+//#ifdef MANUAL
+//        VT_USER_END("main");
+//#endif
 
     return 0;
 }
