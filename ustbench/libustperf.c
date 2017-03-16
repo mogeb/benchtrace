@@ -104,7 +104,7 @@ void perf_init(int nCpus)
                PERF_COUNT_HW_CACHE_OP_READ << 8 | \
                PERF_COUNT_HW_CACHE_RESULT_MISS << 16;
     attr1->read_format = PERF_FORMAT_GROUP|PERF_FORMAT_ID;
-    strncat(metric1_str, "L1D_misses", METRIC_LEN);
+    strncat(metric1_str, "L1_misses", METRIC_LEN);
 
     /* attr2 = cache misses */
     attr2->size = sizeof(struct perf_event_attr);
